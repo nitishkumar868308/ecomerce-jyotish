@@ -1,0 +1,90 @@
+export interface Astrologer {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  bio?: string;
+  specializations: string[];
+  languages: string[];
+  experience: number;
+  rating: number;
+  totalConsultations: number;
+  pricePerMinute: number;
+  isOnline: boolean;
+  isVerified: boolean;
+  isActive: boolean;
+  gallery?: string[];
+  documents?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatSession {
+  id: number;
+  userId: number;
+  astrologerId: number;
+  user?: { id: number; name: string; avatar?: string };
+  astrologer?: { id: number; name: string; avatar?: string };
+  status: "ACTIVE" | "ENDED" | "PENDING";
+  startedAt?: string;
+  endedAt?: string;
+  duration?: number;
+  totalAmount?: number;
+  messages?: ChatMessage[];
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  sessionId: number;
+  senderId: number;
+  senderType: "USER" | "ASTROLOGER";
+  content: string;
+  type: "TEXT" | "IMAGE" | "SYSTEM";
+  createdAt: string;
+}
+
+export interface AdCampaign {
+  id: number;
+  astrologerId: number;
+  astrologer?: Astrologer;
+  title: string;
+  description?: string;
+  image?: string;
+  budget: number;
+  spent: number;
+  status: "ACTIVE" | "PAUSED" | "ENDED";
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+}
+
+export interface ProfileEditRequest {
+  id: number;
+  astrologerId: number;
+  astrologer?: Astrologer;
+  changes: Record<string, unknown>;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewedBy?: number;
+  reviewNote?: string;
+  createdAt: string;
+}
+
+export interface JyotishService {
+  id: number;
+  name: string;
+  description?: string;
+  price: number;
+  duration: number;
+  isActive: boolean;
+}
+
+export interface JyotishSlot {
+  id: number;
+  astrologerId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  isBooked: boolean;
+}

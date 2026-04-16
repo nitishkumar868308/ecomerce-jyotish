@@ -1,0 +1,102 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, ENDPOINTS } from "@/lib/api";
+import type { Astrologer, AdCampaign, ProfileEditRequest } from "@/types/jyotish";
+import type { ApiResponse, PaginatedResponse, PaginationParams } from "@/types/api";
+import toast from "react-hot-toast";
+
+// --- Astrologers ---
+
+export function useAdminAstrologers(params?: PaginationParams) {
+  return useQuery({
+    queryKey: ["admin", "astrologers", params],
+    queryFn: async () => {
+      const { data } = await api.get<PaginatedResponse<Astrologer>>(ENDPOINTS.JYOTISH.ASTROLOGER.LIST, {
+        params,
+      });
+      return data;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+// --- Ad Campaigns ---
+
+export function useAdminAdCampaigns(params?: PaginationParams) {
+  return useQuery({
+    queryKey: ["admin", "adCampaigns", params],
+    queryFn: async () => {
+      const { data } = await api.get<PaginatedResponse<AdCampaign>>(ENDPOINTS.JYOTISH.AD_CAMPAIGN.LIST, {
+        params,
+      });
+      return data;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useCreateAdCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<AdCampaign>) => {
+      const { data } = await api.post<ApiResponse<AdCampaign>>(ENDPOINTS.JYOTISH.AD_CAMPAIGN.CREATE, payload);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "adCampaigns"] });
+      toast.success("Ad campaign created!");
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to create ad campaign");
+    },
+  });
+}
+
+// --- Profile Edit Requests ---
+
+export function useAdminProfileEditRequests(params?: PaginationParams) {
+  return useQuery({
+    queryKey: ["admin", "profileEditRequests", params],
+    queryFn: async () => {
+      const { data } = await api.get<PaginatedResponse<ProfileEditRequest>>(ENDPOINTS.JYOTISH.PROFILE_EDIT.LIST, {
+        params,
+      });
+      return data;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useApproveProfileEdit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.put(ENDPOINTS.JYOTISH.PROFILE_EDIT.APPROVE(id));
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "profileEditRequests"] });
+      qc.invalidateQueries({ queryKey: ["admin", "astrologers"] });
+      toast.success("Profile edit approved!");
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to approve profile edit");
+    },
+  });
+}
+
+export function useRejectProfileEdit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reviewNote }: { id: number; reviewNote?: string }) => {
+      const { data } = await api.put(ENDPOINTS.JYOTISH.PROFILE_EDIT.REJECT(id), { reviewNote });
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "profileEditRequests"] });
+      toast.success("Profile edit rejected!");
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to reject profile edit");
+    },
+  });
+}

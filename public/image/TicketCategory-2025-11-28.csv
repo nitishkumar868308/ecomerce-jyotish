@@ -1,0 +1,10 @@
+id,created_at,updated_at,name,code
+10,2024-10-09 22:02:59,2024-10-09 22:03:12,Referral,Referral
+9,2024-10-01 15:38:27,2024-10-09 22:13:00,Offer,Offer
+7,2024-10-01 15:38:03,2024-10-09 22:02:33,Staking,Staking
+6,2024-10-01 15:37:51,2024-10-09 22:00:59,Two Factor Authentication,Two Factor Authentication
+5,2024-10-01 15:37:40,2024-10-09 22:02:26,KYC Verification,KYC Verification
+4,2024-10-01 15:37:30,2024-10-01 15:37:30,Withdrawal,Withdrawal
+3,2024-10-01 15:37:20,2024-10-01 15:37:20,Deposit,Deposit
+2,2024-10-01 15:37:10,2024-10-09 21:53:19,YTP Buy/Sell,buy
+1,2024-10-01 15:37:00,2024-10-09 22:26:33,General Query,General Query
