@@ -1,31 +1,46 @@
 export interface Banner {
   id: number;
-  title?: string;
-  image: string;
-  mobileImage?: string;
+  text?: string;
+  image?: string;
   link?: string;
-  order: number;
-  isActive: boolean;
+  platform: string[];
+  active: boolean;
+  deleted: boolean;
   createdAt: string;
+  updatedAt: string;
+  countries?: BannerCountry[];
+  states?: BannerState[];
+}
+
+export interface BannerCountry {
+  id: number;
+  bannerId: number;
+  countryCode: string;
+  position: number;
+}
+
+export interface BannerState {
+  id: number;
+  bannerId: number;
+  stateId: number;
+  position: number;
 }
 
 export interface HeaderItem {
   id: number;
-  title: string;
-  subtitle?: string;
-  image?: string;
-  link?: string;
-  type: string;
-  order: number;
-  isActive: boolean;
+  name: string;
+  active: boolean;
+  deleted: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface VideoStory {
   id: number;
-  title?: string;
-  videoUrl: string;
-  thumbnail?: string;
-  isActive: boolean;
+  title: string;
+  url: string;
+  active: boolean;
+  deleted: number;
   createdAt: string;
+  updatedAt: string;
 }

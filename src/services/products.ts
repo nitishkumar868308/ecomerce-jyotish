@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ENDPOINTS } from "@/lib/api";
 import type { Product, ProductFilters } from "@/types/product";
-import type { ApiResponse, PaginatedResponse } from "@/types/api";
+import type { ApiResponse, PaginatedResponse, ProductsFastResponse } from "@/types/api";
 import toast from "react-hot-toast";
 
 export function useProducts(filters?: ProductFilters) {
@@ -21,7 +21,7 @@ export function useProductsFast(filters?: ProductFilters) {
   return useQuery({
     queryKey: ["products", "fast", filters],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Product>>(ENDPOINTS.PRODUCTS.FAST, {
+      const { data } = await api.get<ProductsFastResponse<Product>>(ENDPOINTS.PRODUCTS.FAST, {
         params: filters,
       });
       return data;
@@ -45,8 +45,9 @@ export function useProduct(id: string | number) {
   return useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
-      const { data } = await api.get<ApiResponse<Product>>(ENDPOINTS.PRODUCTS.SINGLE(id));
-      return data.data;
+      const { data } = await api.get(ENDPOINTS.PRODUCTS.SINGLE(id));
+      // Backend may return { success, data } wrapper or direct product
+      return data.data ?? data;
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000,

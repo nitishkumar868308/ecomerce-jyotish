@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useBanners } from "@/services/banners";
+import { useCountryStore } from "@/stores/useCountryStore";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,17 +17,23 @@ import "swiper/css/navigation";
 
 export function HeroSlider() {
   const { data: banners, isLoading } = useBanners();
+  const { code: countryCode } = useCountryStore();
 
-  const activeBanners = banners
-    ?.filter((b) => b.isActive)
-    .sort((a, b) => a.order - b.order);
+  const activeBanners = useMemo(() => {
+    if (!banners) return [];
+    return banners.filter((b) => {
+      if (!b.active) return false;
+      if (b.countries && b.countries.length > 0) {
+        return b.countries.some((c) => c.countryCode === countryCode);
+      }
+      return true;
+    });
+  }, [banners, countryCode]);
 
   if (isLoading) {
     return (
-      <section className="relative w-full">
-        <Skeleton
-          className="h-[300px] w-full sm:h-[400px] lg:h-[500px] rounded-none"
-        />
+      <section className="relative w-full bg-[var(--bg-secondary)]">
+        <div className="w-full" style={{ paddingBottom: "31.25%" }} />
       </section>
     );
   }
@@ -33,15 +41,15 @@ export function HeroSlider() {
   if (!activeBanners?.length) return null;
 
   return (
-    <section className="relative w-full overflow-hidden">
+    <section className="relative w-full overflow-hidden bg-[var(--bg-secondary)]">
       <Swiper
         modules={[Autoplay, Pagination, Navigation]}
         autoplay={{ delay: 5000, disableOnInteraction: false }}
         pagination={{
           clickable: true,
           bulletClass:
-            "inline-block w-2.5 h-2.5 rounded-full bg-white/50 mx-1 cursor-pointer transition-all duration-300",
-          bulletActiveClass: "!bg-white !w-7 !rounded-full",
+            "inline-block w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white/50 mx-0.5 sm:mx-1 cursor-pointer transition-all duration-300",
+          bulletActiveClass: "!bg-white !w-5 sm:!w-7 !rounded-full",
         }}
         navigation={{
           prevEl: ".hero-prev",
@@ -49,16 +57,16 @@ export function HeroSlider() {
         }}
         loop={activeBanners.length > 1}
         speed={700}
-        className="h-[300px] sm:h-[400px] lg:h-[500px]"
+        className="w-full"
       >
         {activeBanners.map((banner, index) => (
           <SwiperSlide key={banner.id}>
             {banner.link ? (
-              <Link href={banner.link} className="block relative w-full h-full">
+              <Link href={banner.link} className="block relative w-full">
                 <SlideContent banner={banner} index={index} />
               </Link>
             ) : (
-              <div className="relative w-full h-full">
+              <div className="relative w-full">
                 <SlideContent banner={banner} index={index} />
               </div>
             )}
@@ -70,27 +78,25 @@ export function HeroSlider() {
           <>
             <button
               className={cn(
-                "hero-prev absolute left-3 top-1/2 z-10 -translate-y-1/2",
-                "flex h-10 w-10 items-center justify-center rounded-full",
+                "hero-prev absolute left-1 sm:left-2 lg:left-4 top-1/2 z-10 -translate-y-1/2",
+                "flex h-7 w-7 sm:h-9 sm:w-9 lg:h-11 lg:w-11 items-center justify-center rounded-full",
                 "bg-black/20 text-white backdrop-blur-sm",
-                "transition-all duration-300 hover:bg-black/40 hover:scale-110",
-                "sm:left-4 sm:h-12 sm:w-12"
+                "transition-all duration-300 hover:bg-black/40 hover:scale-110"
               )}
               aria-label="Previous slide"
             >
-              <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
+              <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
             </button>
             <button
               className={cn(
-                "hero-next absolute right-3 top-1/2 z-10 -translate-y-1/2",
-                "flex h-10 w-10 items-center justify-center rounded-full",
+                "hero-next absolute right-1 sm:right-2 lg:right-4 top-1/2 z-10 -translate-y-1/2",
+                "flex h-7 w-7 sm:h-9 sm:w-9 lg:h-11 lg:w-11 items-center justify-center rounded-full",
                 "bg-black/20 text-white backdrop-blur-sm",
-                "transition-all duration-300 hover:bg-black/40 hover:scale-110",
-                "sm:right-4 sm:h-12 sm:w-12"
+                "transition-all duration-300 hover:bg-black/40 hover:scale-110"
               )}
               aria-label="Next slide"
             >
-              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
+              <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
             </button>
           </>
         )}
@@ -103,52 +109,40 @@ function SlideContent({
   banner,
   index,
 }: {
-  banner: { id: number; title?: string; image: string; mobileImage?: string };
+  banner: { id: number; text?: string; image?: string; link?: string };
   index: number;
 }) {
   return (
-    <>
-      {/* Desktop image */}
-      <Image
-        src={banner.image}
-        alt={banner.title || `Banner ${index + 1}`}
-        fill
-        className={cn(
-          "object-cover",
-          banner.mobileImage ? "hidden sm:block" : ""
-        )}
-        priority={index === 0}
-        sizes="100vw"
-      />
-
-      {/* Mobile image (if available) */}
-      {banner.mobileImage && (
+    <div className="relative w-full">
+      {/* Image fills full width */}
+      <div className="relative w-full">
         <Image
-          src={banner.mobileImage}
-          alt={banner.title || `Banner ${index + 1}`}
-          fill
-          className="object-cover sm:hidden"
+          src={banner.image || "/image/placeholder.jpg"}
+          alt={banner.text || `Banner ${index + 1}`}
+          width={1920}
+          height={600}
+          className="w-full h-auto object-contain"
           priority={index === 0}
           sizes="100vw"
         />
-      )}
+      </div>
 
       {/* Title overlay */}
-      {banner.title && (
+      {banner.text && (
         <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/60 via-transparent to-transparent">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="w-full px-6 pb-12 sm:px-10 sm:pb-16 lg:px-16 lg:pb-20"
+            className="w-full px-3 pb-6 sm:px-8 sm:pb-10 lg:px-14 lg:pb-16"
           >
-            <h2 className="max-w-2xl text-2xl font-bold text-white drop-shadow-lg sm:text-3xl lg:text-5xl">
-              {banner.title}
+            <h2 className="max-w-2xl text-sm font-bold text-white drop-shadow-lg sm:text-xl md:text-2xl lg:text-4xl xl:text-5xl leading-tight">
+              {banner.text}
             </h2>
           </motion.div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

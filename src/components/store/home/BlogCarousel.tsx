@@ -21,15 +21,15 @@ export function BlogCarousel() {
   if (!isLoading && !blogs?.length) return null;
 
   return (
-    <section className="py-12 lg:py-16">
+    <section className="py-8 sm:py-12 lg:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section header */}
-        <div className="mb-8 flex items-end justify-between lg:mb-12">
+        <div className="mb-6 sm:mb-8 flex items-end justify-between lg:mb-12">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--text-primary)] lg:text-3xl">
               From Our Blog
             </h2>
-            <p className="mt-2 text-[var(--text-secondary)]">
+            <p className="mt-1.5 text-sm sm:text-base text-[var(--text-secondary)]">
               Stories, tips, and insights
             </p>
           </div>
@@ -123,15 +123,16 @@ function BlogCard({
     title: string;
     slug: string;
     excerpt?: string;
-    content: string;
-    thumbnail?: string;
-    publishedAt?: string;
+    image?: string;
+    authorName?: string;
     createdAt: string;
+    category?: string;
+    readTime?: number;
+    views?: number;
   };
 }) {
-  const excerpt =
-    blog.excerpt || blog.content.replace(/<[^>]*>/g, "").slice(0, 120);
-  const dateStr = blog.publishedAt || blog.createdAt;
+  const excerpt = blog.excerpt || "";
+  const dateStr = blog.createdAt;
 
   return (
     <Link
@@ -145,9 +146,9 @@ function BlogCard({
     >
       {/* Thumbnail */}
       <div className="relative aspect-[16/10] overflow-hidden bg-[var(--bg-secondary)]">
-        {blog.thumbnail ? (
+        {blog.image ? (
           <Image
-            src={blog.thumbnail}
+            src={blog.image}
             alt={blog.title}
             fill
             className="object-cover transition-transform duration-500 group-hover:scale-105"

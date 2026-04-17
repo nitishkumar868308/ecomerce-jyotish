@@ -4,7 +4,7 @@ import type { Review } from "@/types/review";
 import type { ApiResponse, PaginatedResponse, PaginationParams } from "@/types/api";
 import toast from "react-hot-toast";
 
-export function useReviews(params?: PaginationParams & { productId?: number }) {
+export function useReviews(params?: PaginationParams & { productId?: string | number }) {
   return useQuery({
     queryKey: ["reviews", params],
     queryFn: async () => {

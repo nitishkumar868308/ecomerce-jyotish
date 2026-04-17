@@ -4,25 +4,38 @@ export interface Category {
   slug?: string;
   description?: string;
   image?: string;
-  isActive: boolean;
-  order?: number;
-  subcategories?: Subcategory[];
-  _count?: { products: number };
+  active: boolean;
+  deleted: number;
+  platform: string[];
+  hsn?: string;
   createdAt: string;
   updatedAt: string;
+  subcategories?: Subcategory[];
+  countryTaxes?: CountryTax[];
 }
 
 export interface Subcategory {
   id: number;
   name: string;
   slug?: string;
-  description?: string;
-  image?: string;
   categoryId: number;
-  category?: { id: number; name: string };
-  isActive: boolean;
-  order?: number;
-  _count?: { products: number };
+  image?: string;
+  active: boolean;
+  deleted: number;
+  platform: string[];
+  offerId?: number;
   createdAt: string;
   updatedAt: string;
+  category?: { id: number; name: string };
+}
+
+export interface CountryTax {
+  id: number;
+  country: string;
+  categoryId: number;
+  generalTax?: number;
+  gstTax?: number;
+  active: boolean;
+  type?: string;
+  countryCode?: string;
 }

@@ -1,45 +1,71 @@
 export interface Product {
-  id: number;
+  id: string;
   name: string;
   slug?: string;
-  description: string;
-  shortDescription?: string;
-  price: number;
-  mrp?: number;
-  discount?: number;
-  sku?: string;
-  stock: number;
-  images: string[];
-  thumbnail?: string;
-  categoryId: number;
-  subcategoryId?: number;
+  description?: string;
+  short?: string;
+  price: string;
+  MRP?: string;
+  sku: string;
+  stock: string;
+  image: string[];
+  categoryId?: number;
+  subcategoryId: number;
   category?: { id: number; name: string };
   subcategory?: { id: number; name: string };
   tags?: Tag[];
   attributes?: ProductAttribute[];
   variations?: ProductVariation[];
   marketLinks?: MarketLink[];
-  isActive: boolean;
-  isFeatured?: boolean;
+  active: boolean;
+  deleted: number;
+  color: string[];
+  size: string[];
   weight?: number;
   dimensions?: string;
   metaTitle?: string;
   metaDescription?: string;
+  keywords?: string;
+  offerId?: number;
+  offers?: Offer[];
+  primaryOffer?: Offer;
+  bulkPrice?: string;
+  minQuantity?: string;
+  barCode?: string;
+  platform: string[];
+  dimension?: Record<string, unknown>;
+  isDefault?: Record<string, unknown>;
+  otherCountriesPrice?: string;
+  currency?: string;
+  currencySymbol?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface ProductVariation {
-  id: number;
-  productId: number;
-  name: string;
+  id: string;
+  productId: string;
+  name?: string;
+  variationName?: string;
   sku?: string;
-  price: number;
-  mrp?: number;
-  stock: number;
-  attributes: Record<string, string>;
-  image?: string;
-  isActive: boolean;
+  price: string;
+  MRP?: string;
+  mrp?: string;
+  stock: string;
+  attributes?: Record<string, string>;
+  image?: string | string[];
+  active: boolean;
+  deleted?: number;
+  barCode?: string;
+  bulkPrice?: string;
+  minQuantity?: string;
+  short?: string;
+  description?: string;
+  offerId?: number;
+  otherCountriesPrice?: string;
+  dimension?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductAttribute {
@@ -55,20 +81,34 @@ export interface Tag {
 
 export interface MarketLink {
   id: number;
-  productId: number;
+  productId: string;
   platform: string;
   url: string;
 }
 
+export interface Offer {
+  id: number;
+  name: string;
+  discountType: string;
+  discountValue: Record<string, unknown>;
+  type?: Record<string, unknown>;
+  description?: string;
+  active: boolean;
+  deleted: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProductFilters {
-  categoryId?: number;
-  subcategoryId?: number;
+  categoryId?: number | string;
+  subcategoryId?: number | string;
   minPrice?: number;
   maxPrice?: number;
   search?: string;
-  tags?: string[];
+  tags?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   page?: number;
   limit?: number;
+  letter?: string;
 }

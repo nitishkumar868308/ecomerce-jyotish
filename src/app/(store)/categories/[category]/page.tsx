@@ -1,61 +1,137 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import DefaultPage from "@/components/layout/DefaultPage";
-import { PageHeader } from "@/components/shared/PageHeader";
-import FilterSidebar from "@/components/store/categories/FilterSidebar";
+import { Breadcrumbs } from "@/components/store/categories/Breadcrumbs";
+import { FilterSidebar, AlphabetBar, DEFAULT_FILTERS } from "@/components/store/categories/FilterSidebar";
+import type { FilterState } from "@/components/store/categories/FilterSidebar";
 import ProductGrid from "@/components/store/product/ProductGrid";
 import { Pagination } from "@/components/ui/Pagination";
-import { useProducts } from "@/services/products";
-import { useCategory } from "@/services/categories";
+import { useProductsFast } from "@/services/products";
+import { useCategories } from "@/services/categories";
+import { useTags } from "@/services/tags";
+import { ROUTES } from "@/config/routes";
+
+const ITEMS_PER_PAGE = 12;
 
 export default function CategoryPage() {
   const params = useParams<{ category: string }>();
+  const categoryName = decodeURIComponent(params.category);
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<Record<string, any>>({});
 
-  const { data: category, isLoading: categoryLoading } = useCategory(params.category);
-  const { data: products, isLoading: productsLoading } = useProducts({
-    categoryId: params.category,
-    page,
-    ...filters,
+  const { data: categories, isLoading: catsLoading } = useCategories();
+  const { data: tagsData } = useTags();
+  const tags = tagsData ?? [];
+
+  const matchedCategory = useMemo(
+    () =>
+      categories?.find(
+        (c) => c.name.toLowerCase() === categoryName.toLowerCase()
+      ),
+    [categories, categoryName]
+  );
+
+  const [filters, setFilters] = useState<FilterState>({
+    ...DEFAULT_FILTERS,
   });
 
-  const isLoading = categoryLoading || productsLoading;
+  // Set categoryId from matched category
+  const effectiveCategoryId = filters.categoryId ?? matchedCategory?.id;
+
+  const { data: productsData, isLoading: productsLoading } = useProductsFast({
+    page,
+    limit: ITEMS_PER_PAGE,
+    categoryId: effectiveCategoryId,
+    subcategoryId: filters.subcategoryId,
+    tags: filters.tags.length > 0 ? filters.tags.join(",") : undefined,
+    minPrice: filters.minPrice > 0 ? filters.minPrice : undefined,
+    maxPrice: filters.maxPrice < 50000 ? filters.maxPrice : undefined,
+    sortBy: filters.sortBy || undefined,
+    sortOrder: filters.sortBy ? filters.sortOrder : undefined,
+    letter: filters.letter || undefined,
+  });
+
+  const productList = productsData?.data?.products ?? [];
+  const totalProducts = productsData?.data?.total ?? 0;
+  const totalPages = productsData?.data?.totalPages ?? 0;
+
+  const handleFilterChange = useCallback((partial: Partial<FilterState>) => {
+    setFilters((prev) => ({ ...prev, ...partial }));
+    setPage(1);
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setFilters({ ...DEFAULT_FILTERS });
+    setPage(1);
+  }, []);
+
+  const handleLetterChange = useCallback((letter: string) => {
+    setFilters((prev) => ({ ...prev, letter }));
+    setPage(1);
+  }, []);
 
   return (
     <DefaultPage>
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <PageHeader
-          title={category?.name ?? "Category"}
-          description={category?.description}
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <Breadcrumbs
+          items={[
+            { label: "Categories", href: ROUTES.CATEGORIES },
+            { label: categoryName },
+          ]}
         />
 
-        <div className="mt-6 flex flex-col gap-8 lg:flex-row">
-          {/* Sidebar */}
-          <aside className="w-full shrink-0 lg:w-64">
-            <FilterSidebar
-              categoryId={params.category}
-              filters={filters}
-              onChange={setFilters}
+        {/* Page Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] sm:text-3xl">
+            {categoryName}
+          </h1>
+          {matchedCategory?.description && (
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              {matchedCategory.description}
+            </p>
+          )}
+          {totalProducts > 0 && (
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              {totalProducts} product{totalProducts !== 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
+
+        {/* Layout: Sidebar + Products + AlphabetBar */}
+        <div className="flex flex-col gap-6 lg:flex-row">
+          <FilterSidebar
+            categories={categories ?? []}
+            tags={tags}
+            filters={{ ...filters, categoryId: effectiveCategoryId }}
+            onFilterChange={handleFilterChange}
+            onReset={handleReset}
+            isLoading={catsLoading}
+          />
+
+          <div className="flex-1 min-w-0">
+            <ProductGrid
+              products={productList}
+              loading={productsLoading || catsLoading}
+              className="grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
             />
-          </aside>
 
-          {/* Products */}
-          <div className="flex-1">
-            <ProductGrid products={products?.data ?? []} loading={isLoading} />
-
-            {products && products.totalPages > 1 && (
+            {totalPages > 1 && (
               <div className="mt-8 flex justify-center">
                 <Pagination
                   currentPage={page}
-                  totalPages={products.totalPages}
+                  totalPages={totalPages}
                   onPageChange={setPage}
                 />
               </div>
             )}
           </div>
+
+          {/* Desktop Alphabet Bar */}
+          <AlphabetBar
+            activeLetter={filters.letter}
+            onLetterChange={handleLetterChange}
+          />
         </div>
       </div>
     </DefaultPage>

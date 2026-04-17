@@ -2,14 +2,17 @@ export interface Blog {
   id: number;
   title: string;
   slug: string;
-  content: string;
+  authorName: string;
+  authorImage?: string;
+  category: string;
+  description: string;
   excerpt?: string;
-  thumbnail?: string;
-  images?: string[];
-  author?: string;
-  tags?: string[];
+  image?: string;
   isPublished: boolean;
-  publishedAt?: string;
+  active: boolean;
+  deleted: boolean;
+  views: number;
+  readTime?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -12,7 +12,7 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import type { Review } from "@/types/review";
 
 interface ReviewSectionProps {
-  productId: number;
+  productId: string | number;
   className?: string;
 }
 

@@ -21,7 +21,7 @@ function CategorySkeleton() {
 export function CategoryList({ className }: CategoryListProps) {
   const { data: categories, isLoading } = useCategories();
 
-  const activeCategories = categories?.filter((c) => c.isActive) ?? [];
+  const activeCategories = categories?.filter((c) => c.active) ?? [];
 
   if (isLoading) {
     return (

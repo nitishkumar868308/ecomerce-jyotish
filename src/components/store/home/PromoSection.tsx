@@ -9,7 +9,7 @@ import { Sparkles, ArrowRight } from "lucide-react";
 
 export function PromoSection() {
   return (
-    <section className="py-12 lg:py-16">
+    <section className="py-8 sm:py-12 lg:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -19,7 +19,7 @@ export function PromoSection() {
           className={cn(
             "relative overflow-hidden rounded-2xl",
             "bg-gradient-to-br from-[var(--accent-primary)] via-[var(--accent-primary-hover)] to-[var(--accent-primary)]",
-            "px-6 py-12 sm:px-12 sm:py-16 lg:px-16 lg:py-20"
+            "px-5 py-8 sm:px-10 sm:py-14 lg:px-16 lg:py-20"
           )}
         >
           {/* Decorative background elements */}
@@ -35,11 +35,11 @@ export function PromoSection() {
                 Limited Time Offer
               </div>
 
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
                 Special Offers
               </h2>
 
-              <p className="mt-4 max-w-xl text-base text-white/80 sm:text-lg">
+              <p className="mt-3 max-w-xl text-sm text-white/80 sm:text-base lg:text-lg">
                 Discover exclusive deals on our finest collections. Premium quality
                 at unbeatable prices -- shop now before the offers end.
               </p>

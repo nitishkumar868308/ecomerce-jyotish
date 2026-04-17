@@ -2,10 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { Facebook, Instagram, Twitter, Youtube, Mail } from "lucide-react";
+import Image from "next/image";
+import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FOOTER_NAV } from "@/config/navigation";
-import { APP_NAME, APP_DESCRIPTION } from "@/config/constants";
+import { APP_NAME } from "@/config/constants";
 import { ROUTES } from "@/config/routes";
 
 const SOCIAL_LINKS = [
@@ -13,7 +14,7 @@ const SOCIAL_LINKS = [
   { label: "Instagram", icon: Instagram, href: "#" },
   { label: "Twitter", icon: Twitter, href: "#" },
   { label: "YouTube", icon: Youtube, href: "#" },
-  { label: "Email", icon: Mail, href: `mailto:support@example.com` },
+  { label: "Email", icon: Mail, href: "mailto:info@hecatewizardmall.com" },
 ];
 
 function FooterLinkGroup({
@@ -57,18 +58,19 @@ export function Footer({ className }: { className?: string }) {
       {/* Main footer grid */}
       <div className="mx-auto max-w-7xl px-4 py-12 lg:px-8">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
-          {/* About column */}
+          {/* About column - Logo instead of text */}
           <div className="sm:col-span-2 lg:col-span-1">
-            <Link
-              href={ROUTES.HOME}
-              className="inline-block text-lg font-bold tracking-tight"
-            >
-              <span className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-secondary)] bg-clip-text text-transparent">
-                {APP_NAME}
-              </span>
+            <Link href={ROUTES.HOME} className="inline-block">
+              <Image
+                src="/image/logohwm.png"
+                alt="Hecate Wizard Mall"
+                width={200}
+                height={60}
+                className="h-14 w-auto object-contain"
+              />
             </Link>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-[var(--text-secondary)]">
-              {APP_DESCRIPTION}. Discover authentic products curated with care.
+              Discover authentic products curated with care.
               Quality you can trust, delivered to your doorstep.
             </p>
             <div className="mt-5 flex items-center gap-2">
@@ -90,7 +92,39 @@ export function Footer({ className }: { className?: string }) {
           {/* Link columns */}
           <FooterLinkGroup title="Company" links={FOOTER_NAV.company} />
           <FooterLinkGroup title="Policies" links={FOOTER_NAV.policies} />
-          <FooterLinkGroup title="Account" links={FOOTER_NAV.account} />
+
+          {/* Contact Info instead of Account links */}
+          <div>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+              Contact Us
+            </h3>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2.5">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-primary)]" />
+                <span className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                  27 Deepali, Pitampura, New Delhi 110034
+                </span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <Mail className="h-4 w-4 shrink-0 text-[var(--accent-primary)]" />
+                <a
+                  href="mailto:info@hecatewizardmall.com"
+                  className="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-primary)]"
+                >
+                  info@hecatewizardmall.com
+                </a>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <Phone className="h-4 w-4 shrink-0 text-[var(--accent-primary)]" />
+                <a
+                  href="tel:+919717033830"
+                  className="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-primary)]"
+                >
+                  +91 9717033830
+                </a>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 

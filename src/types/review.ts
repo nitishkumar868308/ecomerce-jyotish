@@ -1,6 +1,6 @@
 export interface Review {
   id: number;
-  productId: number;
+  productId: string | number;
   userId: number;
   user?: { id: number; name: string; avatar?: string };
   product?: { id: number; name: string };

@@ -24,7 +24,7 @@ export function CategoryCard({ category, className }: CategoryCardProps) {
       transition={{ duration: 0.3 }}
       className={className}
     >
-      <Link href={ROUTES.CATEGORY(category.slug || String(category.id))}>
+      <Link href={ROUTES.CATEGORY(category.name)}>
         <div className="group relative overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
           {/* Image */}
           <div className="relative aspect-[4/3] overflow-hidden bg-[var(--bg-secondary)]">

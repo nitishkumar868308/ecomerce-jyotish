@@ -20,8 +20,12 @@ export function useCart() {
 
 export function useAddToCart() {
   const qc = useQueryClient();
+  const { isLoggedIn } = useAuthStore();
   return useMutation({
     mutationFn: async (payload: AddToCartPayload) => {
+      if (!isLoggedIn) {
+        throw new Error("LOGIN_REQUIRED");
+      }
       const { data } = await api.post(ENDPOINTS.CART.ADD, payload);
       return data;
     },
@@ -30,6 +34,10 @@ export function useAddToCart() {
       toast.success("Added to cart!");
     },
     onError: (error: any) => {
+      if (error.message === "LOGIN_REQUIRED") {
+        toast.error("Please login to add items to cart");
+        return;
+      }
       toast.error(error.response?.data?.message || "Failed to add to cart");
     },
   });
@@ -38,8 +46,8 @@ export function useAddToCart() {
 export function useUpdateCartItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, quantity }: { id: number; quantity: number }) => {
-      const { data } = await api.put(ENDPOINTS.CART.UPDATE(id), { quantity });
+    mutationFn: async ({ id, quantity }: { id: string; quantity: number }) => {
+      const { data } = await api.put(ENDPOINTS.CART.UPDATE, { id, quantity });
       return data;
     },
     onSuccess: () => {
@@ -54,8 +62,8 @@ export function useUpdateCartItem() {
 export function useRemoveCartItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
-      await api.delete(ENDPOINTS.CART.DELETE(id));
+    mutationFn: async (id: string) => {
+      await api.delete(ENDPOINTS.CART.DELETE, { data: { id } });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cart"] });

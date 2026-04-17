@@ -11,8 +11,8 @@ export const ROUTES = {
 
   // Products & Categories
   CATEGORIES: "/categories",
-  CATEGORY: (slug: string) => `/categories/${slug}`,
-  SUBCATEGORY: (category: string, sub: string) => `/categories/${category}/subcategory/${sub}`,
+  CATEGORY: (categoryName: string) => `/categories/${encodeURIComponent(categoryName)}`,
+  SUBCATEGORY: (categoryName: string, subName: string) => `/categories/${encodeURIComponent(categoryName)}/${encodeURIComponent(subName)}`,
   PRODUCT: (id: string | number) => `/product/${id}`,
 
   // Blog
@@ -25,6 +25,7 @@ export const ROUTES = {
   // Auth
   RESET_PASSWORD: "/reset-password",
   REGISTER_JYOTISH: "/register-jyotish",
+  LOGIN_JYOTISH: "/login-jyotish",
 
   // Dashboard
   DASHBOARD: "/dashboard",

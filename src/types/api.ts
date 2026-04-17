@@ -13,6 +13,32 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+/** Backend products/fast returns nested data */
+export interface ProductsFastResponse<T> {
+  success: boolean;
+  data: {
+    products: T[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+/** Backend orders list returns nested data with meta */
+export interface OrdersListResponse<T> {
+  success: boolean;
+  data: {
+    data: T[];
+    meta: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  };
+}
+
 export interface ApiError {
   success: false;
   message: string;

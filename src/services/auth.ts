@@ -20,15 +20,19 @@ export function useMe() {
 }
 
 export function useLogin() {
-  const { setAuth } = useAuthStore();
+  const { setAuth, setUser } = useAuthStore();
   return useMutation({
     mutationFn: async (payload: LoginPayload) => {
       const { data } = await api.post<AuthResponse>(ENDPOINTS.AUTH.LOGIN, payload);
       return data;
     },
     onSuccess: (data) => {
-      setAuth(data.user, data.token);
-      toast.success("Login successful!");
+      if (data.token) {
+        setAuth(data.user, data.token);
+      } else {
+        setUser(data.user);
+      }
+      toast.success(`Welcome, ${data.user?.name?.split(" ")[0] || ""}!`);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Login failed");
@@ -37,15 +41,19 @@ export function useLogin() {
 }
 
 export function useRegister() {
-  const { setAuth } = useAuthStore();
+  const { setAuth, setUser } = useAuthStore();
   return useMutation({
     mutationFn: async (payload: RegisterPayload) => {
       const { data } = await api.post<AuthResponse>(ENDPOINTS.AUTH.REGISTER, payload);
       return data;
     },
     onSuccess: (data) => {
-      setAuth(data.user, data.token);
-      toast.success("Registration successful!");
+      if (data.token) {
+        setAuth(data.user, data.token);
+      } else {
+        setUser(data.user);
+      }
+      toast.success(`Welcome, ${data.user?.name?.split(" ")[0] || ""}!`);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Registration failed");
@@ -54,15 +62,19 @@ export function useRegister() {
 }
 
 export function useGoogleLogin() {
-  const { setAuth } = useAuthStore();
+  const { setAuth, setUser } = useAuthStore();
   return useMutation({
     mutationFn: async (credential: string) => {
-      const { data } = await api.post<AuthResponse>(ENDPOINTS.AUTH.GOOGLE, { credential });
+      const { data } = await api.post<AuthResponse>(ENDPOINTS.AUTH.GOOGLE, { token: credential });
       return data;
     },
     onSuccess: (data) => {
-      setAuth(data.user, data.token);
-      toast.success("Login successful!");
+      if (data.token) {
+        setAuth(data.user, data.token);
+      } else {
+        setUser(data.user);
+      }
+      toast.success(`Welcome, ${data.user?.name?.split(" ")[0] || ""}!`);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Google login failed");

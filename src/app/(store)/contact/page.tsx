@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import DefaultPage from "@/components/layout/DefaultPage";
-import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { Button } from "@/components/ui/Button";
 import { api, ENDPOINTS } from "@/lib/api";
 import toast from "react-hot-toast";
+import { motion } from "framer-motion";
+import { Mail, Phone, MapPin, Clock, Send, MessageSquare, Sparkles } from "lucide-react";
 
 interface ContactForm {
   name: string;
@@ -22,6 +22,37 @@ const INITIAL_VALUES: ContactForm = {
   subject: "",
   message: "",
 };
+
+const CONTACT_INFO = [
+  {
+    icon: MapPin,
+    title: "Visit Us",
+    lines: ["123 Commerce Street", "New Delhi, India 110001"],
+    color: "text-blue-500",
+    bg: "bg-blue-50 dark:bg-blue-950/30",
+  },
+  {
+    icon: Phone,
+    title: "Call Us",
+    lines: ["+91 98765 43210", "+91 11 4567 8901"],
+    color: "text-green-500",
+    bg: "bg-green-50 dark:bg-green-950/30",
+  },
+  {
+    icon: Mail,
+    title: "Email Us",
+    lines: ["support@hecatewizardmall.com", "info@hecatewizardmall.com"],
+    color: "text-purple-500",
+    bg: "bg-purple-50 dark:bg-purple-950/30",
+  },
+  {
+    icon: Clock,
+    title: "Working Hours",
+    lines: ["Mon - Sat: 10:00 AM - 7:00 PM", "Sunday: Closed"],
+    color: "text-amber-500",
+    bg: "bg-amber-50 dark:bg-amber-950/30",
+  },
+];
 
 export default function ContactPage() {
   const [form, setForm] = useState<ContactForm>(INITIAL_VALUES);
@@ -45,7 +76,7 @@ export default function ContactPage() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await api.post(ENDPOINTS.CONTACT, form);
+      await api.post(ENDPOINTS.CONTACT.SEND, form);
       toast.success("Message sent successfully!");
       setForm(INITIAL_VALUES);
     } catch {
@@ -62,25 +93,118 @@ export default function ContactPage() {
 
   return (
     <DefaultPage>
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <PageHeader
-          title="Contact Us"
-          description="We would love to hear from you"
-        />
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[var(--accent-primary)] via-[var(--accent-primary)] to-[var(--accent-secondary)] py-16 sm:py-20 lg:py-24">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10" />
+          <div className="absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-white/5" />
+        </div>
+        <div className="relative mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+              <MessageSquare className="h-7 w-7 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
+              Get in Touch
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-white/80">
+              Have questions, feedback, or need assistance? We&apos;d love to hear from you.
+              Our team is here to help.
+            </p>
+          </motion.div>
+        </div>
+      </div>
 
-        <div className="mt-8 grid gap-12 lg:grid-cols-3">
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5 lg:col-span-2">
+      {/* Contact Cards */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 -mt-10 relative z-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {CONTACT_INFO.map((info, idx) => (
+            <motion.div
+              key={info.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1, duration: 0.4 }}
+              className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${info.bg}`}>
+                <info.icon className={`h-5 w-5 ${info.color}`} />
+              </div>
+              <h3 className="mt-3 text-sm font-semibold text-[var(--text-primary)]">
+                {info.title}
+              </h3>
+              {info.lines.map((line, i) => (
+                <p key={i} className="mt-1 text-sm text-[var(--text-secondary)]">
+                  {line}
+                </p>
+              ))}
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Form Section */}
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="grid gap-12 lg:grid-cols-5">
+          {/* Left: Info */}
+          <div className="lg:col-span-2">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-primary-light)] px-4 py-1.5 text-sm font-medium text-[var(--accent-primary)]">
+                <Sparkles className="h-4 w-4" />
+                We&apos;re here for you
+              </div>
+              <h2 className="mt-4 text-2xl font-bold text-[var(--text-primary)] sm:text-3xl">
+                Send us a Message
+              </h2>
+              <p className="mt-3 text-[var(--text-secondary)] leading-relaxed">
+                Fill out the form and our team will get back to you within 24 hours.
+                We value every message and ensure each one receives a thoughtful response.
+              </p>
+
+              <div className="mt-8 space-y-4">
+                <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/40">
+                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  </div>
+                  Average response time: Under 4 hours
+                </div>
+                <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/40">
+                    <Mail className="h-3.5 w-3.5 text-blue-500" />
+                  </div>
+                  All messages are encrypted and secure
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Right: Form */}
+          <motion.form
+            onSubmit={handleSubmit}
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="lg:col-span-3 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-6 sm:p-8 shadow-sm"
+          >
             <div className="grid gap-5 sm:grid-cols-2">
               <Input
-                label="Name"
+                label="Full Name"
                 value={form.name}
                 onChange={(e) => update("name", e.target.value)}
                 error={errors.name}
-                placeholder="Your name"
+                placeholder="Your full name"
               />
               <Input
-                label="Email"
+                label="Email Address"
                 type="email"
                 value={form.email}
                 onChange={(e) => update("email", e.target.value)}
@@ -88,65 +212,42 @@ export default function ContactPage() {
                 placeholder="you@example.com"
               />
             </div>
-            <Input
-              label="Subject"
-              value={form.subject}
-              onChange={(e) => update("subject", e.target.value)}
-              error={errors.subject}
-              placeholder="What is this about?"
-            />
-            <Textarea
-              label="Message"
-              value={form.message}
-              onChange={(e) => update("message", e.target.value)}
-              error={errors.message}
-              placeholder="Tell us more..."
-              rows={6}
-            />
-            <Button type="submit" loading={submitting}>
-              Send Message
-            </Button>
-          </form>
-
-          {/* Contact info sidebar */}
-          <aside className="space-y-8">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Address
-              </h3>
-              <p className="mt-2 text-[var(--text-secondary)]">
-                123 Commerce Street
-                <br />
-                New Delhi, India 110001
-              </p>
+            <div className="mt-5">
+              <Input
+                label="Subject"
+                value={form.subject}
+                onChange={(e) => update("subject", e.target.value)}
+                error={errors.subject}
+                placeholder="What is this about?"
+              />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Phone
-              </h3>
-              <p className="mt-2 text-[var(--text-secondary)]">
-                +91 98765 43210
-              </p>
+            <div className="mt-5">
+              <Textarea
+                label="Message"
+                value={form.message}
+                onChange={(e) => update("message", e.target.value)}
+                error={errors.message}
+                placeholder="Write your message here..."
+                rows={6}
+              />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Email
-              </h3>
-              <p className="mt-2 text-[var(--text-secondary)]">
-                support@example.com
-              </p>
+            <div className="mt-6">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[var(--accent-primary)] px-8 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[var(--accent-primary-hover)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 w-full sm:w-auto"
+              >
+                {submitting ? (
+                  <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : null}
+                Send Message
+                <Send className="h-4 w-4 shrink-0" />
+              </button>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Hours
-              </h3>
-              <p className="mt-2 text-[var(--text-secondary)]">
-                Mon - Sat: 10:00 AM - 7:00 PM
-                <br />
-                Sunday: Closed
-              </p>
-            </div>
-          </aside>
+          </motion.form>
         </div>
       </div>
     </DefaultPage>

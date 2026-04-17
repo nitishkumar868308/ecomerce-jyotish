@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
@@ -18,8 +18,21 @@ export function ProductImages({
   productName = "Product",
   className,
 }: ProductImagesProps) {
+  const displayImages = useMemo(() => {
+    const valid = images.filter((img) => typeof img === "string" && img.trim() !== "");
+    return valid.length > 0 ? valid : ["/placeholder.png"];
+  }, [images]);
+
   const [activeIndex, setActiveIndex] = useState(0);
-  const displayImages = images.length > 0 ? images : ["/placeholder.png"];
+
+  // Reset index when images change
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [displayImages]);
+
+  // Clamp index
+  const safeIndex = activeIndex < displayImages.length ? activeIndex : 0;
+  const currentSrc = displayImages[safeIndex];
 
   const goToPrev = () => {
     setActiveIndex((prev) =>
@@ -33,18 +46,17 @@ export function ProductImages({
     );
   };
 
+  if (!currentSrc) return null;
+
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {/* Main Image */}
       <div className="group relative aspect-square overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]">
         <Zoom>
-          <Image
-            src={displayImages[activeIndex]}
-            alt={`${productName} - Image ${activeIndex + 1}`}
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover"
-            priority
+          <img
+            src={currentSrc}
+            alt={`${productName} - Image ${safeIndex + 1}`}
+            className="h-full w-full object-cover"
           />
         </Zoom>
 
@@ -71,7 +83,7 @@ export function ProductImages({
         {/* Image Counter */}
         {displayImages.length > 1 && (
           <div className="absolute bottom-2 right-2 z-10 rounded-full bg-[var(--bg-card)]/80 px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] backdrop-blur-sm">
-            {activeIndex + 1} / {displayImages.length}
+            {safeIndex + 1} / {displayImages.length}
           </div>
         )}
       </div>
@@ -85,18 +97,16 @@ export function ProductImages({
               onClick={() => setActiveIndex(index)}
               className={cn(
                 "relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all duration-200 sm:h-20 sm:w-20",
-                index === activeIndex
+                index === safeIndex
                   ? "border-[var(--accent-primary)] ring-1 ring-[var(--accent-primary)]/30"
                   : "border-[var(--border-primary)] opacity-60 hover:opacity-100"
               )}
               aria-label={`View image ${index + 1}`}
             >
-              <Image
+              <img
                 src={img}
                 alt={`${productName} thumbnail ${index + 1}`}
-                fill
-                sizes="80px"
-                className="object-cover"
+                className="h-full w-full object-cover"
               />
             </button>
           ))}

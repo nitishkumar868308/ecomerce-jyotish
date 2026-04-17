@@ -27,17 +27,17 @@ const itemVariants = {
 export function CategoryShowcase() {
   const { data: categories, isLoading } = useCategories();
 
-  const activeCategories = categories?.filter((c) => c.isActive);
+  const activeCategories = categories?.filter((c) => c.active);
 
   return (
-    <section className="py-12 lg:py-16">
+    <section className="py-8 sm:py-12 lg:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section header */}
-        <div className="mb-8 text-center lg:mb-12">
-          <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
+        <div className="mb-6 sm:mb-8 text-center lg:mb-12">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--text-primary)] lg:text-3xl">
             Shop by Category
           </h2>
-          <p className="mt-2 text-[var(--text-secondary)]">
+          <p className="mt-1.5 text-sm sm:text-base text-[var(--text-secondary)]">
             Explore our curated collections
           </p>
         </div>
@@ -61,18 +61,18 @@ export function CategoryShowcase() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
-            className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-6"
+            className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:gap-6 lg:grid-cols-5 xl:grid-cols-6"
           >
             {activeCategories.map((category) => (
               <motion.div key={category.id} variants={itemVariants}>
                 <Link
-                  href={ROUTES.CATEGORY(category.slug || String(category.id))}
+                  href={ROUTES.CATEGORY(category.name)}
                   className="group flex flex-col items-center gap-3"
                 >
                   {/* Image container */}
                   <div
                     className={cn(
-                      "relative h-24 w-24 overflow-hidden rounded-full sm:h-28 sm:w-28 lg:h-32 lg:w-32",
+                      "relative h-20 w-20 overflow-hidden rounded-full sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32",
                       "border-2 border-[var(--border-primary)] bg-[var(--bg-secondary)]",
                       "transition-all duration-300",
                       "group-hover:scale-105 group-hover:border-[var(--accent-primary)] group-hover:shadow-lg group-hover:shadow-[var(--accent-primary)]/10"

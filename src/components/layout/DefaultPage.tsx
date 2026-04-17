@@ -6,6 +6,8 @@ import Topbar from "./Topbar";
 import Header from "./Header";
 import Footer from "./Footer";
 import MobileNav from "./MobileNav";
+import AuthModal from "@/components/store/auth/AuthModal";
+import { CartDrawer } from "@/components/store/cart/CartDrawer";
 
 interface DefaultPageProps {
   children: React.ReactNode;
@@ -29,6 +31,10 @@ export function DefaultPage({ children, className }: DefaultPageProps) {
 
       <Footer />
       <MobileNav />
+
+      {/* Global Overlays */}
+      <AuthModal />
+      <CartDrawer />
     </div>
   );
 }

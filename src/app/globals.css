@@ -104,11 +104,88 @@
   --admin-header: #131C31;
 }
 
-/* QuickGo specific theme */
+/* QuickGo light theme */
 .quickgo-theme {
-  --qg-primary: #0C4A6E;
-  --qg-secondary: #082F49;
-  --qg-accent: #06B6D4;
+  --bg-primary: #F0FDFA;
+  --bg-secondary: #CCFBF1;
+  --bg-tertiary: #99F6E4;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F0FDFA;
+  --bg-input: #F0FDFA;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  --text-primary: #042F2E;
+  --text-secondary: #115E59;
+  --text-muted: #0F766E;
+  --text-faint: #5EEAD4;
+  --text-inverse: #FFFFFF;
+
+  --border-primary: #99F6E4;
+  --border-secondary: #5EEAD4;
+  --border-focus: #0D9488;
+
+  --accent-primary: #0D9488;
+  --accent-primary-hover: #0F766E;
+  --accent-primary-light: rgba(13, 148, 136, 0.1);
+  --accent-secondary: #14B8A6;
+  --accent-secondary-hover: #0D9488;
+  --accent-success: #10B981;
+  --accent-danger: #EF4444;
+  --accent-warning: #F59E0B;
+  --accent-info: #06B6D4;
+
+  --shadow-sm: 0 1px 2px rgba(13, 148, 136, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(13, 148, 136, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(13, 148, 136, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(13, 148, 136, 0.12);
+
+  --qg-primary: #0D9488;
+  --qg-primary-hover: #0F766E;
+  --qg-accent: #14B8A6;
+  --qg-bg: #F0FDFA;
+  --qg-text: #042F2E;
+  --qg-text-secondary: #115E59;
+  --qg-border: #99F6E4;
+}
+
+/* QuickGo dark theme */
+.dark .quickgo-theme {
+  --bg-primary: #042F2E;
+  --bg-secondary: #064E3B;
+  --bg-tertiary: #065F46;
+  --bg-card: #064E3B;
+  --bg-card-hover: #065F46;
+  --bg-input: #065F46;
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+
+  --text-primary: #F0FDFA;
+  --text-secondary: #99F6E4;
+  --text-muted: #5EEAD4;
+  --text-faint: #2DD4BF;
+  --text-inverse: #042F2E;
+
+  --border-primary: #065F46;
+  --border-secondary: #047857;
+  --border-focus: #14B8A6;
+
+  --accent-primary: #14B8A6;
+  --accent-primary-hover: #2DD4BF;
+  --accent-primary-light: rgba(20, 184, 166, 0.15);
+  --accent-secondary: #5EEAD4;
+  --accent-secondary-hover: #2DD4BF;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+
+  --qg-primary: #14B8A6;
+  --qg-primary-hover: #2DD4BF;
+  --qg-accent: #5EEAD4;
+  --qg-bg: #042F2E;
+  --qg-text: #F0FDFA;
+  --qg-text-secondary: #99F6E4;
+  --qg-border: #065F46;
 }
 
 /* Jyotish dark theme (public pages) */
@@ -186,6 +263,14 @@ body * {
   display: none;
 }
 .scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
@@ -274,6 +359,21 @@ body * {
   50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.4); }
 }
 
+@keyframes loader-orb-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 12px var(--accent-primary),
+      0 0 24px rgba(99, 102, 241, 0.3),
+      0 0 48px rgba(245, 158, 11, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 20px var(--accent-secondary),
+      0 0 40px rgba(245, 158, 11, 0.4),
+      0 0 64px rgba(99, 102, 241, 0.2);
+  }
+}
+
 /* ============================================
    COMPONENT UTILITIES
    ============================================ */
@@ -289,6 +389,10 @@ body * {
   background: rgba(19, 28, 49, 0.8);
   border-color: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(8px);
+}
+
+.loader-orb-glow {
+  animation: loader-orb-glow 2s ease-in-out infinite;
 }
 
 .gradient-text {

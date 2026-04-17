@@ -8,8 +8,8 @@ import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ProductCard } from "./ProductCard";
 
 interface RelatedProductsProps {
-  categoryId: number;
-  currentProductId: number;
+  categoryId?: number;
+  currentProductId: string | number;
   className?: string;
 }
 

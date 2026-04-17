@@ -7,6 +7,8 @@ export interface User {
   phone?: string;
   role: UserRole;
   avatar?: string;
+  profileImage?: string;
+  gender?: string;
   countryCode?: string;
   createdAt: string;
   updatedAt: string;
@@ -42,7 +44,7 @@ export interface RegisterPayload {
 
 export interface AuthResponse {
   success: boolean;
-  token: string;
+  token?: string;
   user: User;
   message?: string;
 }

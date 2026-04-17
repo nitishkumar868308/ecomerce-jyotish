@@ -2,28 +2,14 @@
 
 import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import {
-  Star,
-  ShoppingCart,
-  Heart,
-  Share2,
-  Minus,
-  Plus,
-  Truck,
-  RotateCcw,
-  Shield,
-  CheckCircle2,
-  XCircle,
-} from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs } from "@/components/ui/Tabs";
-import { useAddToCart } from "@/services/cart";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { useAddToCart, useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { calculateOffer } from "@/lib/offers";
 import { ProductImages } from "./ProductImages";
-import { ProductVariantSelector } from "./ProductVariantSelector";
-import { ReviewSection } from "./ReviewSection";
+import { OfferList } from "./OfferList";
+import { QuantityControl } from "@/components/store/shared/QuantityControl";
 import type { Product, ProductVariation } from "@/types/product";
 
 interface ProductDetailProps {
@@ -31,64 +17,220 @@ interface ProductDetailProps {
   className?: string;
 }
 
-const DETAIL_TABS = [
-  { id: "description", label: "Description" },
-  { id: "reviews", label: "Reviews" },
-  { id: "shipping", label: "Shipping Info" },
-];
+/**
+ * Parse variationName like "Color: White / Type of wax: Pure Beeswax"
+ * into { "Color": "White", "Type of wax": "Pure Beeswax" }
+ */
+function parseVariationName(
+  variationName?: string
+): Record<string, string> {
+  if (!variationName) return {};
+  const parts = variationName.split("/").map((p) => p.trim());
+  const result: Record<string, string> = {};
+  for (const part of parts) {
+    const colonIdx = part.indexOf(":");
+    if (colonIdx > 0) {
+      const key = part.slice(0, colonIdx).trim();
+      const val = part.slice(colonIdx + 1).trim();
+      if (key && val) result[key] = val;
+    }
+  }
+  return result;
+}
 
 export function ProductDetail({ product, className }: ProductDetailProps) {
-  const [selectedVariation, setSelectedVariation] = useState<ProductVariation | null>(
-    product.variations?.[0] ?? null
-  );
+  const [selectedVariation, setSelectedVariation] =
+    useState<ProductVariation | null>(product.variations?.[0] ?? null);
   const [quantity, setQuantity] = useState(1);
-  const [activeTab, setActiveTab] = useState("description");
-  const [isWishlisted, setIsWishlisted] = useState(false);
-  const { format } = usePriceConverter();
+  const { user } = useAuthStore();
   const addToCart = useAddToCart();
+  const updateCart = useUpdateCartItem();
+  const removeCart = useRemoveCartItem();
+  const { data: cartItems } = useCart();
 
-  const activePrice = selectedVariation?.price ?? product.price;
-  const activeMrp = selectedVariation?.mrp ?? product.mrp;
-  const activeStock = selectedVariation?.stock ?? product.stock;
+  const activePrice = selectedVariation?.price
+    ? Number(selectedVariation.price)
+    : Number(product.price) || 0;
+  const activeMrp = selectedVariation?.MRP
+    ? Number(selectedVariation.MRP)
+    : selectedVariation?.mrp
+      ? Number(selectedVariation.mrp)
+      : Number(product.MRP) || 0;
+  const activeStock = selectedVariation?.stock
+    ? Number(selectedVariation.stock)
+    : Number(product.stock) || 0;
+  const currSymbol = product.currencySymbol || "₹";
 
-  const discount = activeMrp && activeMrp > activePrice
-    ? Math.round(((activeMrp - activePrice) / activeMrp) * 100)
-    : 0;
+  const primaryOffer = product.primaryOffer || product.offers?.[0] || null;
+  const offerResult = calculateOffer(activePrice, primaryOffer);
+
+  const discount =
+    activeMrp && activeMrp > activePrice
+      ? Math.round(((activeMrp - activePrice) / activeMrp) * 100)
+      : 0;
 
   const images = useMemo(() => {
-    const imgs = [...(product.images || [])];
-    if (selectedVariation?.image && !imgs.includes(selectedVariation.image)) {
-      imgs.unshift(selectedVariation.image);
+    const imgs = [...(product.image || [])].filter(
+      (img) => img && img.trim() !== ""
+    );
+    if (selectedVariation?.image) {
+      const varImages = Array.isArray(selectedVariation.image)
+        ? selectedVariation.image
+        : [selectedVariation.image];
+      varImages
+        .filter((img) => img && img.trim() !== "")
+        .forEach((img) => {
+          if (!imgs.includes(img)) {
+            imgs.unshift(img);
+          }
+        });
     }
     return imgs;
-  }, [product.images, selectedVariation]);
+  }, [product.image, selectedVariation]);
+
+  // Parse variations into attribute groups from variationName
+  const { variationGroups, parsedVariations } = useMemo(() => {
+    if (!product.variations || product.variations.length === 0)
+      return { variationGroups: {} as Record<string, string[]>, parsedVariations: new Map<string, Record<string, string>>() };
+
+    const parsed = new Map<string, Record<string, string>>();
+    const groups: Record<string, Set<string>> = {};
+
+    for (const v of product.variations) {
+      // Try attributes first, fallback to parsing variationName
+      const attrs =
+        v.attributes && Object.keys(v.attributes).length > 0
+          ? v.attributes
+          : parseVariationName(v.variationName);
+
+      parsed.set(v.id, attrs);
+
+      for (const [key, val] of Object.entries(attrs)) {
+        if (!groups[key]) groups[key] = new Set();
+        groups[key].add(val);
+      }
+    }
+
+    const variationGroups = Object.fromEntries(
+      Object.entries(groups).map(([key, valSet]) => [key, Array.from(valSet)])
+    );
+
+    return { variationGroups, parsedVariations: parsed };
+  }, [product.variations]);
+
+  // Track selected attributes across all groups
+  const selectedAttrs = useMemo(() => {
+    if (!selectedVariation) return {} as Record<string, string>;
+    return parsedVariations.get(selectedVariation.id) || {};
+  }, [selectedVariation, parsedVariations]);
+
+  // Find the cart item matching current selected attributes
+  const currentCartItem = useMemo(() => {
+    if (!cartItems) return null;
+    return cartItems.find((ci) => {
+      if (ci.productId !== product.id) return false;
+      const ciAttrs = (ci.attributes || {}) as Record<string, string>;
+      const keys1 = Object.keys(selectedAttrs).sort();
+      const keys2 = Object.keys(ciAttrs).sort();
+      if (keys1.length !== keys2.length) return false;
+      return keys1.every((k, i) => k === keys2[i] && selectedAttrs[k] === ciAttrs[k]);
+    }) ?? null;
+  }, [cartItems, product.id, selectedAttrs]);
+
+  const cartQty = currentCartItem?.quantity ?? 0;
+  const isInCart = cartQty > 0;
+
+  // Get cart count for a specific variation's attributes
+  const getVariationCartCount = (variationId: string): number => {
+    if (!cartItems) return 0;
+    const varAttrs = parsedVariations.get(variationId) || {};
+    return cartItems
+      .filter((ci) => {
+        if (ci.productId !== product.id) return false;
+        const ciAttrs = (ci.attributes || {}) as Record<string, string>;
+        const keys1 = Object.keys(varAttrs).sort();
+        const keys2 = Object.keys(ciAttrs).sort();
+        if (keys1.length !== keys2.length) return false;
+        return keys1.every((k, i) => k === keys2[i] && varAttrs[k] === ciAttrs[k]);
+      })
+      .reduce((sum, ci) => sum + ci.quantity, 0);
+  };
+
+  // Total qty of this product across all colors (for bulk check)
+  const totalProductQty = useMemo(() => {
+    if (!cartItems) return 0;
+    return cartItems
+      .filter((ci) => ci.productId === product.id)
+      .reduce((sum, ci) => sum + ci.quantity, 0);
+  }, [cartItems, product.id]);
+
+  // Bulk price info
+  const bulkMinQty = Number(product.minQuantity) || 0;
+  const bulkPrice = Number(product.bulkPrice) || 0;
+  const isBulkActive = bulkMinQty > 0 && bulkPrice > 0 && totalProductQty >= bulkMinQty;
+
+  // Effective display price considering bulk
+  const displayPrice = isBulkActive ? bulkPrice : (offerResult.hasOffer ? offerResult.discountedPrice : activePrice);
 
   const handleAddToCart = () => {
     addToCart.mutate({
       productId: product.id,
-      variationId: selectedVariation?.id,
+      variationId: selectedVariation ? String(selectedVariation.id) : undefined,
+      productName: product.name,
       quantity,
+      pricePerItem: offerResult.hasOffer
+        ? offerResult.discountedPrice
+        : activePrice,
+      currencySymbol: currSymbol,
+      totalPrice:
+        (offerResult.hasOffer ? offerResult.discountedPrice : activePrice) *
+        quantity,
+      attributes: selectedAttrs,
+      image: images[0],
+      userId: user?.id,
+      selectedCountry: product.currency || undefined,
+      currency: product.currency || undefined,
+      barCode: product.barCode || undefined,
+      bulkPrice: product.bulkPrice ? Number(product.bulkPrice) : undefined,
+      bulkMinQty: product.minQuantity ? Number(product.minQuantity) : undefined,
+      offerApplied: offerResult.hasOffer,
+      productOfferApplied: offerResult.hasOffer,
+      productOfferId: primaryOffer?.id,
     });
   };
 
   const handleQuantityChange = (delta: number) => {
-    setQuantity((prev) => Math.max(1, Math.min(prev + delta, activeStock)));
+    setQuantity((prev) =>
+      Math.max(1, Math.min(prev + delta, activeStock || 999))
+    );
   };
 
-  const handleShare = async () => {
-    if (navigator.share) {
-      await navigator.share({
-        title: product.name,
-        url: window.location.href,
-      });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-    }
+  const handleVariationSelect = (variation: ProductVariation) => {
+    setSelectedVariation(variation);
+    setQuantity(1);
   };
+
+  // Find matching variation when user clicks an attribute value
+  const findVariationByAttr = (
+    attrKey: string,
+    attrVal: string
+  ): ProductVariation | undefined => {
+    // Build desired attrs: current selected attrs but override the clicked key
+    const desired = { ...selectedAttrs, [attrKey]: attrVal };
+
+    return product.variations?.find((v) => {
+      const vAttrs = parsedVariations.get(v.id) || {};
+      return Object.entries(desired).every(([k, val]) => vAttrs[k] === val);
+    }) || product.variations?.find((v) => {
+      const vAttrs = parsedVariations.get(v.id) || {};
+      return vAttrs[attrKey] === attrVal;
+    });
+  };
+
+  const hasVariationGroups = Object.keys(variationGroups).length > 0;
 
   return (
-    <div className={cn("space-y-10", className)}>
-      {/* Top Section: Images + Info */}
+    <div className={cn("pb-20 lg:pb-0", className)}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10">
         {/* Left: Images */}
         <motion.div
@@ -106,257 +248,263 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           transition={{ duration: 0.4, delay: 0.1 }}
           className="flex flex-col"
         >
-          {/* Category */}
-          {product.category && (
-            <p className="text-sm font-medium uppercase tracking-wider text-[var(--accent-primary)]">
-              {product.category.name}
-            </p>
-          )}
-
           {/* Name */}
-          <h1 className="mt-1 text-2xl font-bold text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
             {product.name}
           </h1>
 
-          {/* SKU */}
-          {product.sku && (
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              SKU: {product.sku}
-            </p>
-          )}
-
-          {/* Rating */}
-          <div className="mt-3 flex items-center gap-2">
-            <div className="flex items-center gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  className={cn(
-                    "h-4 w-4",
-                    i < 4
-                      ? "fill-[var(--accent-warning)] text-[var(--accent-warning)]"
-                      : "text-[var(--border-primary)]"
-                  )}
-                />
-              ))}
-            </div>
-            <span className="text-sm text-[var(--text-secondary)]">(4.0)</span>
-          </div>
-
           {/* Price */}
-          <div className="mt-4 flex items-baseline gap-3">
-            <span className="text-3xl font-bold text-[var(--text-primary)]">
-              {format(activePrice)}
-            </span>
-            {activeMrp && activeMrp > activePrice && (
-              <span className="text-lg text-[var(--text-secondary)] line-through">
-                {format(activeMrp)}
-              </span>
-            )}
-            {discount > 0 && (
-              <Badge variant="success" size="md">
-                {discount}% OFF
-              </Badge>
+          <div className="mt-4 flex flex-wrap items-baseline gap-3">
+            {offerResult.hasOffer ? (
+              <>
+                <span className="text-3xl font-bold text-[var(--accent-success)]">
+                  {currSymbol}
+                  {offerResult.discountedPrice.toLocaleString()}
+                </span>
+                <span className="text-lg text-[var(--text-secondary)] line-through">
+                  {currSymbol}
+                  {activePrice.toLocaleString()}
+                </span>
+                <span className="text-sm font-semibold text-[var(--accent-success)]">
+                  {offerResult.discountLabel}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-3xl font-bold text-[var(--text-primary)]">
+                  {currSymbol}
+                  {activePrice.toLocaleString()}
+                </span>
+                {activeMrp > 0 && activeMrp > activePrice && (
+                  <>
+                    <span className="text-lg text-[var(--text-secondary)] line-through">
+                      {currSymbol}
+                      {activeMrp.toLocaleString()}
+                    </span>
+                    <span className="text-sm font-semibold text-[var(--accent-success)]">
+                      {discount}% OFF
+                    </span>
+                  </>
+                )}
+              </>
             )}
           </div>
 
-          {/* Short Description */}
-          {product.shortDescription && (
-            <p className="mt-4 leading-relaxed text-[var(--text-secondary)]">
-              {product.shortDescription}
-            </p>
-          )}
+          {/* Offers + Bulk Price */}
+          <OfferList
+            offers={product.offers}
+            bulkPrice={product.bulkPrice}
+            minQuantity={product.minQuantity}
+            currencySymbol={currSymbol}
+            claimedOfferIds={
+              cartItems
+                ?.filter((ci) => ci.productId === product.id && ci.offerSummary?.claimed)
+                .map((ci) => ci.offerSummary!.offerId) ?? []
+            }
+            bulkApplied={isBulkActive}
+          />
 
           {/* Divider */}
           <div className="my-5 border-t border-[var(--border-primary)]" />
 
           {/* Variations */}
           {product.variations && product.variations.length > 0 && (
-            <div className="mb-5">
-              <ProductVariantSelector
-                variations={product.variations}
-                selectedId={selectedVariation?.id}
-                onSelect={setSelectedVariation}
-              />
-            </div>
-          )}
+            <div className="mb-5 space-y-4">
+              {hasVariationGroups ? (
+                Object.entries(variationGroups).map(
+                  ([attrKey, attrValues]) => (
+                    <div key={attrKey}>
+                      <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+                        {attrKey}
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {attrValues.map((val) => {
+                          const isSelected = selectedAttrs[attrKey] === val;
+                          const matchingVar = findVariationByAttr(
+                            attrKey,
+                            val
+                          );
+                          const isOutOfStock =
+                            matchingVar && Number(matchingVar.stock) <= 0;
 
-          {/* Quantity Selector */}
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-              Quantity
-            </label>
-            <div className="inline-flex items-center rounded-lg border border-[var(--border-primary)]">
-              <button
-                onClick={() => handleQuantityChange(-1)}
-                disabled={quantity <= 1}
-                className="flex h-10 w-10 items-center justify-center text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                aria-label="Decrease quantity"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <span className="flex h-10 w-12 items-center justify-center border-x border-[var(--border-primary)] text-sm font-semibold text-[var(--text-primary)]">
-                {quantity}
-              </span>
-              <button
-                onClick={() => handleQuantityChange(1)}
-                disabled={quantity >= activeStock}
-                className="flex h-10 w-10 items-center justify-center text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                aria-label="Increase quantity"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+                          const varCartCount = matchingVar ? getVariationCartCount(matchingVar.id) : 0;
 
-          {/* Stock Status */}
-          <div className="mb-5 flex items-center gap-2">
-            {activeStock > 0 ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-[var(--accent-success)]" />
-                <span className="text-sm font-medium text-[var(--accent-success)]">
-                  {activeStock > 10 ? "In Stock" : `Only ${activeStock} left`}
-                </span>
-              </>
-            ) : (
-              <>
-                <XCircle className="h-4 w-4 text-[var(--accent-danger)]" />
-                <span className="text-sm font-medium text-[var(--accent-danger)]">
-                  Out of Stock
-                </span>
-              </>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button
-              size="lg"
-              fullWidth
-              onClick={handleAddToCart}
-              loading={addToCart.isPending}
-              disabled={activeStock === 0}
-              leftIcon={<ShoppingCart className="h-5 w-5" />}
-            >
-              Add to Cart
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => setIsWishlisted(!isWishlisted)}
-              className={cn(
-                "shrink-0",
-                isWishlisted && "border-[var(--accent-danger)] text-[var(--accent-danger)]"
-              )}
-              leftIcon={
-                <Heart
-                  className="h-5 w-5"
-                  fill={isWishlisted ? "currentColor" : "none"}
-                />
-              }
-            >
-              Wishlist
-            </Button>
-            <Button
-              variant="ghost"
-              size="lg"
-              onClick={handleShare}
-              className="shrink-0"
-              aria-label="Share product"
-            >
-              <Share2 className="h-5 w-5" />
-            </Button>
-          </div>
-
-          {/* Trust Badges */}
-          <div className="mt-6 grid grid-cols-3 gap-3">
-            {[
-              { icon: Truck, label: "Free Shipping" },
-              { icon: RotateCcw, label: "Easy Returns" },
-              { icon: Shield, label: "Secure Payment" },
-            ].map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-center"
-              >
-                <Icon className="h-5 w-5 text-[var(--accent-primary)]" />
-                <span className="text-xs font-medium text-[var(--text-secondary)]">
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Bottom Section: Tabs */}
-      <div>
-        <Tabs tabs={DETAIL_TABS} activeTab={activeTab} onChange={setActiveTab} />
-
-        <div className="mt-6">
-          {activeTab === "description" && (
-            <motion.div
-              key="description"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="prose max-w-none text-[var(--text-secondary)]"
-              dangerouslySetInnerHTML={{ __html: product.description }}
-            />
-          )}
-
-          {activeTab === "reviews" && (
-            <motion.div
-              key="reviews"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <ReviewSection productId={product.id} />
-            </motion.div>
-          )}
-
-          {activeTab === "shipping" && (
-            <motion.div
-              key="shipping"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-4 text-[var(--text-secondary)]"
-            >
-              <div className="flex items-start gap-3">
-                <Truck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent-primary)]" />
+                          return (
+                            <button
+                              key={val}
+                              onClick={() => {
+                                if (matchingVar && !isOutOfStock) {
+                                  handleVariationSelect(matchingVar);
+                                }
+                              }}
+                              disabled={!!isOutOfStock}
+                              className={cn(
+                                "relative rounded-lg border px-4 py-2 text-sm font-medium transition-all",
+                                isSelected
+                                  ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-white shadow-sm"
+                                  : isOutOfStock
+                                    ? "cursor-not-allowed border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-muted)] line-through opacity-50"
+                                    : "border-[var(--border-primary)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/5"
+                              )}
+                            >
+                              {val}
+                              {varCartCount > 0 && (
+                                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
+                                  {varCartCount}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                )
+              ) : (
                 <div>
-                  <h4 className="font-semibold text-[var(--text-primary)]">Shipping</h4>
-                  <p className="text-sm">
-                    Free standard shipping on orders above a minimum value. Standard
-                    delivery takes 5-7 business days. Express delivery available at
-                    checkout.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent-primary)]" />
-                <div>
-                  <h4 className="font-semibold text-[var(--text-primary)]">Returns</h4>
-                  <p className="text-sm">
-                    Easy returns within 7 days of delivery. Items must be in
-                    original packaging and unused condition.
-                  </p>
-                </div>
-              </div>
-              {product.weight && (
-                <div className="flex items-start gap-3">
-                  <Shield className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent-primary)]" />
-                  <div>
-                    <h4 className="font-semibold text-[var(--text-primary)]">Product Details</h4>
-                    <p className="text-sm">
-                      Weight: {product.weight}g
-                      {product.dimensions && ` | Dimensions: ${product.dimensions}`}
-                    </p>
+                  <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+                    Variant
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {product.variations.map((v) => {
+                      const isSelected = selectedVariation?.id === v.id;
+                      const isOutOfStock = Number(v.stock) <= 0;
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() =>
+                            !isOutOfStock && handleVariationSelect(v)
+                          }
+                          disabled={isOutOfStock}
+                          className={cn(
+                            "rounded-lg border px-4 py-2 text-sm font-medium transition-all",
+                            isSelected
+                              ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-white shadow-sm"
+                              : isOutOfStock
+                                ? "cursor-not-allowed border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-muted)] line-through opacity-50"
+                                : "border-[var(--border-primary)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/5"
+                          )}
+                        >
+                          {v.variationName || v.name || v.sku}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
-        </div>
+
+          {/* Bulk price indicator */}
+          {isBulkActive && (
+            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/20">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                Bulk price active: {currSymbol}{bulkPrice} each ({totalProductQty} total in cart)
+              </p>
+            </div>
+          )}
+
+          {/* Desktop: Quantity + Add to Cart OR Increment/Decrement */}
+          <div className="hidden lg:block">
+            {isInCart ? (
+              <div className="grid grid-cols-2 gap-3">
+                <QuantityControl
+                  quantity={cartQty}
+                  onIncrement={() => updateCart.mutate({ id: currentCartItem!.id, quantity: cartQty + 1 })}
+                  onDecrement={() => updateCart.mutate({ id: currentCartItem!.id, quantity: cartQty - 1 })}
+                  onDelete={() => removeCart.mutate(currentCartItem!.id)}
+                  maxQuantity={activeStock || 999}
+                  disabled={updateCart.isPending || removeCart.isPending}
+                  itemName={product.name}
+                  deleteLoading={removeCart.isPending}
+                  className="w-full justify-center"
+                />
+                <div className="flex items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 text-sm font-medium text-[var(--text-secondary)]">
+                  {cartQty} in cart · {currSymbol}{(displayPrice * cartQty).toLocaleString()}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <QuantityControl
+                  quantity={quantity}
+                  onIncrement={() => handleQuantityChange(1)}
+                  onDecrement={() => handleQuantityChange(-1)}
+                  onDelete={() => {}}
+                  maxQuantity={activeStock || 999}
+                  showDelete={false}
+                  className="w-full justify-center"
+                />
+                <button
+                  onClick={handleAddToCart}
+                  disabled={addToCart.isPending || activeStock === 0}
+                  className="flex items-center justify-center gap-2.5 rounded-xl bg-[var(--accent-primary)] px-8 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[var(--accent-primary-hover)] disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  Add to Cart
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Tags */}
+          {product.tags && product.tags.length > 0 && (
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Tags</p>
+              <div className="flex flex-wrap gap-2">
+                {product.tags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="rounded-full border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]"
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Mobile Fixed Bottom Bar */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex items-stretch gap-3 border-t border-[var(--border-primary)] bg-[var(--bg-primary)] px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] lg:hidden">
+        {isInCart ? (
+          <>
+            <QuantityControl
+              quantity={cartQty}
+              onIncrement={() => updateCart.mutate({ id: currentCartItem!.id, quantity: cartQty + 1 })}
+              onDecrement={() => updateCart.mutate({ id: currentCartItem!.id, quantity: cartQty - 1 })}
+              onDelete={() => removeCart.mutate(currentCartItem!.id)}
+              maxQuantity={activeStock || 999}
+              disabled={updateCart.isPending || removeCart.isPending}
+              itemName={product.name}
+              deleteLoading={removeCart.isPending}
+              size="sm"
+            />
+            <div className="flex flex-1 items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-sm font-medium text-[var(--text-secondary)]">
+              {cartQty} in cart · {currSymbol}{(displayPrice * cartQty).toLocaleString()}
+            </div>
+          </>
+        ) : (
+          <>
+            <QuantityControl
+              quantity={quantity}
+              onIncrement={() => handleQuantityChange(1)}
+              onDecrement={() => handleQuantityChange(-1)}
+              onDelete={() => {}}
+              maxQuantity={activeStock || 999}
+              showDelete={false}
+              size="sm"
+            />
+            <button
+              onClick={handleAddToCart}
+              disabled={addToCart.isPending || activeStock === 0}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--accent-primary)] py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-primary-hover)] disabled:pointer-events-none disabled:opacity-50"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              Add to Cart
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

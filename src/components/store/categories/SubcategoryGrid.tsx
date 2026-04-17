@@ -16,7 +16,7 @@ interface SubcategoryGridProps {
 
 function SubcategoryCard({ subcategory }: { subcategory: Subcategory }) {
   const productCount = subcategory._count?.products ?? 0;
-  const parentSlug = subcategory.category?.name?.toLowerCase().replace(/\s+/g, "-") || String(subcategory.categoryId);
+  const parentName = subcategory.category?.name || String(subcategory.categoryId);
 
   return (
     <motion.div
@@ -26,8 +26,8 @@ function SubcategoryCard({ subcategory }: { subcategory: Subcategory }) {
     >
       <Link
         href={ROUTES.SUBCATEGORY(
-          parentSlug,
-          subcategory.slug || String(subcategory.id)
+          parentName,
+          subcategory.name
         )}
       >
         <div className="group flex items-center gap-3 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-3 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:flex-col sm:items-start sm:p-4">
@@ -71,7 +71,7 @@ export function SubcategoryGrid({
   subcategories,
   className,
 }: SubcategoryGridProps) {
-  const active = subcategories.filter((s) => s.isActive);
+  const active = subcategories.filter((s) => s.active);
 
   if (active.length === 0) {
     return (
