@@ -5,6 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useUIStore } from "@/stores/useUIStore";
+import { useWalletBalance } from "@/services/wallet";
+import { usePrice } from "@/hooks/usePrice";
+import { Wallet } from "lucide-react";
 
 const navLinks = [
   { href: "/jyotish", label: "Home" },
@@ -21,6 +25,14 @@ export default function JyotishLayout({
   const pathname = usePathname();
   const { isLoggedIn } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const openModal = useUIStore((s) => s.openModal);
+  const { data: walletData } = useWalletBalance();
+  const { format } = usePrice();
+
+  const walletBalance =
+    walletData && typeof walletData === "object" && "balance" in walletData
+      ? Number((walletData as { balance: number | string }).balance) || 0
+      : 0;
 
   const isDashboard = pathname.startsWith("/jyotish/astrologer-dashboard");
 
@@ -65,19 +77,30 @@ export default function JyotishLayout({
 
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
-              <Link
-                href="/jyotish/astrologer-dashboard"
-                className="hidden rounded-lg bg-[var(--jy-accent-purple)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--jy-accent-purple-light)] md:inline-block"
-              >
-                Dashboard
-              </Link>
+              <>
+                <Link
+                  href="/jyotish/astrologer-dashboard/wallet"
+                  className="hidden items-center gap-2 rounded-lg border border-[var(--jy-accent-gold)]/30 bg-[var(--jy-accent-gold)]/5 px-3 py-2 text-sm font-medium text-[var(--jy-accent-gold)] transition-colors hover:bg-[var(--jy-accent-gold)]/10 md:inline-flex"
+                  title="Wallet"
+                >
+                  <Wallet className="h-4 w-4" />
+                  <span>{format(walletBalance)}</span>
+                </Link>
+                <Link
+                  href="/jyotish/astrologer-dashboard"
+                  className="hidden rounded-lg bg-[var(--jy-accent-purple)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--jy-accent-purple-light)] md:inline-block"
+                >
+                  Dashboard
+                </Link>
+              </>
             ) : (
-              <Link
-                href="/jyotish/astrologer-dashboard"
+              <button
+                type="button"
+                onClick={() => openModal("auth")}
                 className="hidden rounded-lg border border-[var(--jy-accent-gold)]/30 px-4 py-2 text-sm font-medium text-[var(--jy-accent-gold)] transition-colors hover:bg-[var(--jy-accent-gold)]/10 md:inline-block"
               >
                 Login
-              </Link>
+              </button>
             )}
 
             {/* Mobile toggle */}
@@ -116,13 +139,36 @@ export default function JyotishLayout({
                   {link.label}
                 </Link>
               ))}
-              <Link
-                href="/jyotish/astrologer-dashboard"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-lg bg-[var(--jy-accent-purple)] px-3 py-2 text-center text-sm font-medium text-white"
-              >
-                {isLoggedIn ? "Dashboard" : "Login"}
-              </Link>
+              {isLoggedIn ? (
+                <>
+                  <Link
+                    href="/jyotish/astrologer-dashboard/wallet"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-between rounded-lg bg-[var(--jy-accent-gold)]/10 px-3 py-2 text-sm font-medium text-[var(--jy-accent-gold)]"
+                  >
+                    <span className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Wallet</span>
+                    <span>{format(walletBalance)}</span>
+                  </Link>
+                  <Link
+                    href="/jyotish/astrologer-dashboard"
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-lg bg-[var(--jy-accent-purple)] px-3 py-2 text-center text-sm font-medium text-white"
+                  >
+                    Dashboard
+                  </Link>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    openModal("auth");
+                  }}
+                  className="rounded-lg bg-[var(--jy-accent-purple)] px-3 py-2 text-center text-sm font-medium text-white w-full"
+                >
+                  Login
+                </button>
+              )}
             </div>
           </nav>
         )}
