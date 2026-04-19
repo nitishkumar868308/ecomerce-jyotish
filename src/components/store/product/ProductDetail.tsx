@@ -9,6 +9,8 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { calculateOffer } from "@/lib/offers";
 import { ProductImages } from "./ProductImages";
 import { OfferList } from "./OfferList";
+import { BulkPricingList } from "./BulkPricingList";
+import { ProductDescription } from "./ProductDescription";
 import { QuantityControl } from "@/components/store/shared/QuantityControl";
 import type { Product, ProductVariation } from "@/types/product";
 
@@ -39,8 +41,18 @@ function parseVariationName(
 }
 
 export function ProductDetail({ product, className }: ProductDetailProps) {
+  const sortedVariations = useMemo(() => {
+    const arr = [...(product.variations ?? [])];
+    arr.sort((a, b) => {
+      const ao = (a as { sortOrder?: number }).sortOrder ?? 999999;
+      const bo = (b as { sortOrder?: number }).sortOrder ?? 999999;
+      return ao - bo;
+    });
+    return arr;
+  }, [product.variations]);
+
   const [selectedVariation, setSelectedVariation] =
-    useState<ProductVariation | null>(product.variations?.[0] ?? null);
+    useState<ProductVariation | null>(sortedVariations[0] ?? null);
   const [quantity, setQuantity] = useState(1);
   const { user } = useAuthStore();
   const addToCart = useAddToCart();
@@ -61,7 +73,17 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
     : Number(product.stock) || 0;
   const currSymbol = product.currencySymbol || "₹";
 
-  const primaryOffer = product.primaryOffer || product.offers?.[0] || null;
+  const variationOffer = useMemo(() => {
+    if (!selectedVariation?.offerId) return null;
+    return (
+      (product.offers ?? []).find(
+        (o) => o.id === selectedVariation.offerId,
+      ) ?? null
+    );
+  }, [selectedVariation, product.offers]);
+
+  const primaryOffer =
+    variationOffer || product.primaryOffer || product.offers?.[0] || null;
   const offerResult = calculateOffer(activePrice, primaryOffer);
 
   const discount =
@@ -88,15 +110,24 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
     return imgs;
   }, [product.image, selectedVariation]);
 
+  const activeShort =
+    (selectedVariation as { short?: string } | null)?.short?.trim() ||
+    (product as { short?: string }).short?.trim() ||
+    "";
+  const activeDescription =
+    (selectedVariation as { description?: string } | null)?.description?.trim() ||
+    product.description ||
+    "";
+
   // Parse variations into attribute groups from variationName
   const { variationGroups, parsedVariations } = useMemo(() => {
-    if (!product.variations || product.variations.length === 0)
+    if (!sortedVariations || sortedVariations.length === 0)
       return { variationGroups: {} as Record<string, string[]>, parsedVariations: new Map<string, Record<string, string>>() };
 
     const parsed = new Map<string, Record<string, string>>();
     const groups: Record<string, Set<string>> = {};
 
-    for (const v of product.variations) {
+    for (const v of sortedVariations) {
       // Try attributes first, fallback to parsing variationName
       const attrs =
         v.attributes && Object.keys(v.attributes).length > 0
@@ -116,7 +147,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
     );
 
     return { variationGroups, parsedVariations: parsed };
-  }, [product.variations]);
+  }, [sortedVariations]);
 
   // Track selected attributes across all groups
   const selectedAttrs = useMemo(() => {
@@ -218,10 +249,10 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
     // Build desired attrs: current selected attrs but override the clicked key
     const desired = { ...selectedAttrs, [attrKey]: attrVal };
 
-    return product.variations?.find((v) => {
+    return sortedVariations.find((v) => {
       const vAttrs = parsedVariations.get(v.id) || {};
       return Object.entries(desired).every(([k, val]) => vAttrs[k] === val);
-    }) || product.variations?.find((v) => {
+    }) || sortedVariations.find((v) => {
       const vAttrs = parsedVariations.get(v.id) || {};
       return vAttrs[attrKey] === attrVal;
     });
@@ -252,6 +283,13 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           <h1 className="text-2xl font-bold text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
             {product.name}
           </h1>
+
+          {/* Short description */}
+          {activeShort && (
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              {activeShort}
+            </p>
+          )}
 
           {/* Price */}
           <div className="mt-4 flex flex-wrap items-baseline gap-3">
@@ -304,11 +342,23 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
             bulkApplied={isBulkActive}
           />
 
+          {/* Bulk pricing tiers */}
+          <div className="mt-3">
+            <BulkPricingList
+              tiers={
+                ((product as { bulkPricingTiers?: Array<{ qty: number; unitPrice: number }> })
+                  .bulkPricingTiers) ?? []
+              }
+              currencySymbol={currSymbol}
+              activeQty={totalProductQty}
+            />
+          </div>
+
           {/* Divider */}
           <div className="my-5 border-t border-[var(--border-primary)]" />
 
           {/* Variations */}
-          {product.variations && product.variations.length > 0 && (
+          {sortedVariations && sortedVariations.length > 0 && (
             <div className="mb-5 space-y-4">
               {hasVariationGroups ? (
                 Object.entries(variationGroups).map(
@@ -366,7 +416,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
                     Variant
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {product.variations.map((v) => {
+                    {sortedVariations.map((v) => {
                       const isSelected = selectedVariation?.id === v.id;
                       const isOutOfStock = Number(v.stock) <= 0;
                       return (
@@ -464,6 +514,9 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           )}
         </motion.div>
       </div>
+
+      {/* Long description */}
+      {activeDescription && <ProductDescription html={activeDescription} />}
 
       {/* Mobile Fixed Bottom Bar */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex items-stretch gap-3 border-t border-[var(--border-primary)] bg-[var(--bg-primary)] px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] lg:hidden">
