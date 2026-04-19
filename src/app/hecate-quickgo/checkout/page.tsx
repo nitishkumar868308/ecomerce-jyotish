@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCartStore } from "@/stores/useCartStore";
 import { useCreateOrder } from "@/services/orders";
+import { usePrice } from "@/hooks/usePrice";
 
 export default function QuickGoCheckoutPage() {
   const router = useRouter();
   const { items, total, clearCart } = useCartStore();
   const createOrder = useCreateOrder();
+  const { format } = usePrice();
   const [address, setAddress] = useState({
     name: "",
     phone: "",
@@ -122,7 +124,7 @@ export default function QuickGoCheckoutPage() {
                   </p>
                 </div>
                 <p className="shrink-0 font-semibold">
-                  &#8377;{((item.price ?? 0) * (item.quantity || 1)).toLocaleString("en-IN")}
+                  {format((item.price ?? 0) * (item.quantity || 1))}
                 </p>
               </div>
             ))}
@@ -130,7 +132,7 @@ export default function QuickGoCheckoutPage() {
           <div className="mt-4 flex justify-between border-t border-[var(--qg-border,#e0f2f1)] pt-4 text-base font-bold">
             <span>Total</span>
             <span className="text-[var(--qg-primary,#0d9488)]">
-              &#8377;{total().toLocaleString("en-IN")}
+              {format(total())}
             </span>
           </div>
         </div>

@@ -13,6 +13,7 @@ import { useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
 import { useAddresses, useCreateAddress } from "@/services/address";
 import { useShippingByCountry } from "@/services/shipping";
 import { useCountryStore } from "@/stores/useCountryStore";
+import { usePrice } from "@/hooks/usePrice";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { api, ENDPOINTS } from "@/lib/api";
 import { ROUTES } from "@/config/routes";
@@ -36,7 +37,8 @@ const EMPTY_ADDRESS_FORM = {
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: cartItems, isLoading: cartLoading } = useCart();
-  const { code: countryCode, symbol: currencySymbol } = useCountryStore();
+  const { code: countryCode } = useCountryStore();
+  const { format } = usePrice();
   const { data: shippingOptions } = useShippingByCountry(countryCode);
   const { user } = useAuthStore();
   const { data: addresses, isLoading: addressesLoading } = useAddresses();
@@ -105,7 +107,6 @@ export default function CheckoutPage() {
 
   const items = cartItems ?? [];
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
-  const itemCurrency = items[0]?.currencySymbol || currencySymbol;
 
   const shippingPrice = useMemo(() => {
     if (!shippingOptions || shippingOptions.length === 0) return 0;
@@ -322,7 +323,7 @@ export default function CheckoutPage() {
                 {/* Cart Items (grouped by product) */}
                 <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] divide-y divide-[var(--border-primary)]">
                   {groupCheckoutItems(items).map((group) => (
-                    <CheckoutGroupRow key={group.key} group={group} symbol={itemCurrency} />
+                    <CheckoutGroupRow key={group.key} group={group} />
                   ))}
                 </div>
               </div>
@@ -412,27 +413,27 @@ export default function CheckoutPage() {
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between text-[var(--text-secondary)]">
                       <span>Subtotal ({items.length} items)</span>
-                      <span>{itemCurrency}{subtotal.toLocaleString()}</span>
+                      <span>{format(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-[var(--text-secondary)]">
                       <span>Shipping</span>
-                      <span>{shippingPrice > 0 ? `${itemCurrency}${shippingPrice}` : "Free"}</span>
+                      <span>{shippingPrice > 0 ? format(shippingPrice) : "Free"}</span>
                     </div>
                     {promoApplied && promoDiscount > 0 && (
                       <div className="flex justify-between text-green-600">
                         <span>Promo Discount</span>
-                        <span>-{itemCurrency}{promoDiscount}</span>
+                        <span>-{format(promoDiscount)}</span>
                       </div>
                     )}
                     {donationAmount > 0 && (
                       <div className="flex justify-between text-[var(--text-secondary)]">
                         <span>Donation</span>
-                        <span>{itemCurrency}{donationAmount}</span>
+                        <span>{format(donationAmount)}</span>
                       </div>
                     )}
                     <div className="border-t border-[var(--border-primary)] pt-3 flex justify-between font-bold text-[var(--text-primary)] text-base">
                       <span>Total</span>
-                      <span>{itemCurrency}{total.toLocaleString()}</span>
+                      <span>{format(total)}</span>
                     </div>
                   </div>
                 </div>
@@ -467,7 +468,7 @@ export default function CheckoutPage() {
                             : "border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]"
                         )}
                       >
-                        {itemCurrency}{amt}
+                        {format(amt)}
                       </button>
                     ))}
                   </div>
@@ -502,7 +503,7 @@ export default function CheckoutPage() {
 
                 {/* Place Order */}
                 <Button fullWidth size="lg" loading={placing} onClick={handlePlaceOrder}>
-                  Place Order — {itemCurrency}{total.toLocaleString()}
+                  Place Order — {format(total)}
                 </Button>
               </div>
             </div>
@@ -696,7 +697,8 @@ function groupCheckoutItems(items: CartItem[]): CheckoutGroup[] {
   });
 }
 
-function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: string }) {
+function CheckoutGroupRow({ group }: { group: CheckoutGroup }) {
+  const { format } = usePrice();
   const sharedAttrs = Object.entries(
     (group.items[0].attributes || {}) as Record<string, string>
   ).filter(([k]) => k.toLowerCase() !== "color");
@@ -738,7 +740,7 @@ function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: str
       {/* Sub-rows per color/variation */}
       <div className="space-y-1.5">
         {group.items.map((item) => (
-          <CheckoutSubRow key={item.id} item={item} symbol={symbol} />
+          <CheckoutSubRow key={item.id} item={item} />
         ))}
       </div>
 
@@ -755,17 +757,17 @@ function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: str
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice !== group.totalPrice && (
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-[var(--text-muted)]">Original price</span>
-            <span className="text-xs text-[var(--text-muted)] line-through">{symbol}{group.originalPrice.toLocaleString()}</span>
+            <span className="text-xs text-[var(--text-muted)] line-through">{format(group.originalPrice)}</span>
           </div>
         )}
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-[var(--text-primary)]">You pay</span>
-          <span className="text-sm font-bold text-[var(--text-primary)]">{symbol}{group.totalPrice.toLocaleString()}</span>
+          <span className="text-sm font-bold text-[var(--text-primary)]">{format(group.totalPrice)}</span>
         </div>
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice > group.totalPrice && (
           <div className="flex items-center justify-end">
             <span className="text-[10px] font-semibold text-green-600">
-              You save {symbol}{(group.originalPrice - group.totalPrice).toLocaleString()}
+              You save {format(group.originalPrice - group.totalPrice)}
             </span>
           </div>
         )}
@@ -774,9 +776,10 @@ function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: str
   );
 }
 
-function CheckoutSubRow({ item, symbol }: { item: CartItem; symbol: string }) {
+function CheckoutSubRow({ item }: { item: CartItem }) {
   const updateCart = useUpdateCartItem();
   const removeCart = useRemoveCartItem();
+  const { format } = usePrice();
   const isPending = updateCart.isPending || removeCart.isPending;
 
   const attrs = (item.attributes || {}) as Record<string, string>;
@@ -798,9 +801,9 @@ function CheckoutSubRow({ item, symbol }: { item: CartItem; symbol: string }) {
         <div className="flex items-center gap-1.5">
           {colorVal && <span className="text-xs font-medium text-[var(--text-primary)]">{colorVal}</span>}
           {item.bulkApplied ? (
-            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{symbol}{item.effectivePrice} each</span>
+            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{format(item.effectivePrice ?? item.pricePerItem)} each</span>
           ) : (
-            <span className="text-[11px] text-[var(--text-muted)]">{symbol}{item.pricePerItem} each</span>
+            <span className="text-[11px] text-[var(--text-muted)]">{format(item.pricePerItem)} each</span>
           )}
         </div>
         {item.freeQtyInThisItem != null && item.freeQtyInThisItem > 0 && (
@@ -811,7 +814,7 @@ function CheckoutSubRow({ item, symbol }: { item: CartItem; symbol: string }) {
         )}
       </div>
       <div className="flex flex-col items-end gap-1">
-        <span className="text-xs font-bold text-[var(--text-primary)]">{symbol}{item.totalPrice.toLocaleString()}</span>
+        <span className="text-xs font-bold text-[var(--text-primary)]">{format(item.totalPrice)}</span>
         <QuantityControl
           quantity={item.quantity}
           onIncrement={() => updateCart.mutate({ id: item.id, quantity: item.quantity + 1 })}
