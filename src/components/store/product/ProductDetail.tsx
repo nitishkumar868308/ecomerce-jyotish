@@ -4,6 +4,8 @@ import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePrice } from "@/hooks/usePrice";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import { useAddToCart, useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { calculateOffer } from "@/lib/offers";
@@ -41,6 +43,8 @@ function parseVariationName(
 }
 
 export function ProductDetail({ product, className }: ProductDetailProps) {
+  const { format } = usePrice();
+
   const sortedVariations = useMemo(() => {
     const arr = [...(product.variations ?? [])];
     arr.sort((a, b) => {
@@ -71,7 +75,6 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
   const activeStock = selectedVariation?.stock
     ? Number(selectedVariation.stock)
     : Number(product.stock) || 0;
-  const currSymbol = product.currencySymbol || "₹";
 
   const variationOffer = useMemo(() => {
     if (!selectedVariation?.offerId) return null;
@@ -91,24 +94,19 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
       ? Math.round(((activeMrp - activePrice) / activeMrp) * 100)
       : 0;
 
-  const images = useMemo(() => {
-    const imgs = [...(product.image || [])].filter(
-      (img) => img && img.trim() !== ""
-    );
-    if (selectedVariation?.image) {
-      const varImages = Array.isArray(selectedVariation.image)
-        ? selectedVariation.image
-        : [selectedVariation.image];
-      varImages
-        .filter((img) => img && img.trim() !== "")
-        .forEach((img) => {
-          if (!imgs.includes(img)) {
-            imgs.unshift(img);
-          }
-        });
-    }
-    return imgs;
-  }, [product.image, selectedVariation]);
+  // Resolve gallery images: variation images first, then base product images
+  const baseImages = (product.image ?? [])
+    .map((s) => resolveAssetUrl(s))
+    .filter(Boolean) as string[];
+  const variationImages = (() => {
+    if (!selectedVariation?.image) return [] as string[];
+    const raw = Array.isArray(selectedVariation.image)
+      ? selectedVariation.image
+      : [selectedVariation.image];
+    return raw.map((s) => resolveAssetUrl(s)).filter(Boolean) as string[];
+  })();
+  const gallery = Array.from(new Set([...variationImages, ...baseImages]));
+  const finalGallery = gallery.length > 0 ? gallery : ["/placeholder.png"];
 
   const activeShort =
     (selectedVariation as { short?: string } | null)?.short?.trim() ||
@@ -212,12 +210,12 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
       pricePerItem: offerResult.hasOffer
         ? offerResult.discountedPrice
         : activePrice,
-      currencySymbol: currSymbol,
+      currencySymbol: product.currencySymbol || "₹",
       totalPrice:
         (offerResult.hasOffer ? offerResult.discountedPrice : activePrice) *
         quantity,
       attributes: selectedAttrs,
-      image: images[0],
+      image: finalGallery[0],
       userId: user?.id,
       selectedCountry: product.currency || undefined,
       currency: product.currency || undefined,
@@ -269,7 +267,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <ProductImages images={images} productName={product.name} />
+          <ProductImages images={finalGallery} productName={product.name} />
         </motion.div>
 
         {/* Right: Product Info */}
@@ -285,23 +283,21 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           </h1>
 
           {/* Short description */}
-          {activeShort && (
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+          {activeShort ? (
+            <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
               {activeShort}
             </p>
-          )}
+          ) : null}
 
           {/* Price */}
           <div className="mt-4 flex flex-wrap items-baseline gap-3">
             {offerResult.hasOffer ? (
               <>
                 <span className="text-3xl font-bold text-[var(--accent-success)]">
-                  {currSymbol}
-                  {offerResult.discountedPrice.toLocaleString()}
+                  {format(offerResult.discountedPrice)}
                 </span>
                 <span className="text-lg text-[var(--text-secondary)] line-through">
-                  {currSymbol}
-                  {activePrice.toLocaleString()}
+                  {format(activePrice)}
                 </span>
                 <span className="text-sm font-semibold text-[var(--accent-success)]">
                   {offerResult.discountLabel}
@@ -310,14 +306,12 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
             ) : (
               <>
                 <span className="text-3xl font-bold text-[var(--text-primary)]">
-                  {currSymbol}
-                  {activePrice.toLocaleString()}
+                  {format(activePrice)}
                 </span>
                 {activeMrp > 0 && activeMrp > activePrice && (
                   <>
                     <span className="text-lg text-[var(--text-secondary)] line-through">
-                      {currSymbol}
-                      {activeMrp.toLocaleString()}
+                      {format(activeMrp)}
                     </span>
                     <span className="text-sm font-semibold text-[var(--accent-success)]">
                       {discount}% OFF
@@ -333,7 +327,6 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
             offers={product.offers}
             bulkPrice={product.bulkPrice}
             minQuantity={product.minQuantity}
-            currencySymbol={currSymbol}
             claimedOfferIds={
               cartItems
                 ?.filter((ci) => ci.productId === product.id && ci.offerSummary?.claimed)
@@ -349,7 +342,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
                 ((product as { bulkPricingTiers?: Array<{ qty: number; unitPrice: number }> })
                   .bulkPricingTiers) ?? []
               }
-              currencySymbol={currSymbol}
+              currencySymbol={product.currencySymbol || "₹"}
               activeQty={totalProductQty}
             />
           </div>
@@ -449,7 +442,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           {isBulkActive && (
             <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/20">
               <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Bulk price active: {currSymbol}{bulkPrice} each ({totalProductQty} total in cart)
+                Bulk price active: {format(bulkPrice)} each ({totalProductQty} total in cart)
               </p>
             </div>
           )}
@@ -470,7 +463,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
                   className="w-full justify-center"
                 />
                 <div className="flex items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 text-sm font-medium text-[var(--text-secondary)]">
-                  {cartQty} in cart · {currSymbol}{(displayPrice * cartQty).toLocaleString()}
+                  {cartQty} in cart · {format(displayPrice * cartQty)}
                 </div>
               </div>
             ) : (
@@ -534,7 +527,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
               size="sm"
             />
             <div className="flex flex-1 items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-sm font-medium text-[var(--text-secondary)]">
-              {cartQty} in cart · {currSymbol}{(displayPrice * cartQty).toLocaleString()}
+              {cartQty} in cart · {format(displayPrice * cartQty)}
             </div>
           </>
         ) : (
