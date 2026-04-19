@@ -127,3 +127,16 @@ export function useResetPassword() {
     },
   });
 }
+
+export interface UpdateMyCountryPayload {
+  country: string;
+}
+
+export function useUpdateMyCountry() {
+  return useMutation({
+    mutationFn: async (payload: UpdateMyCountryPayload) => {
+      const { data } = await api.put(ENDPOINTS.AUTH.UPDATE_USER, payload);
+      return data;
+    },
+  });
+}
