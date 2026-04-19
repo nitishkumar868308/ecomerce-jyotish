@@ -55,6 +55,7 @@ export default function ProductPage() {
               <RelatedProducts
                 categoryId={product.categoryId}
                 currentProductId={product.id}
+                platform="wizard"
               />
             </div>
           )}

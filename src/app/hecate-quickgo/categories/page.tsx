@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCategories } from "@/services/categories";
 import { useProducts } from "@/services/products";
+import { filterByPlatform } from "@/lib/products";
 
 export default function QuickGoCategoriesPage() {
   const searchParams = useSearchParams();
@@ -14,7 +15,7 @@ export default function QuickGoCategoriesPage() {
   const { data: productsData, isLoading: prodLoading } = useProducts(
     selectedCat ? { category: selectedCat } : undefined,
   );
-  const products = productsData?.data ?? [];
+  const products = filterByPlatform(productsData?.data, "quickgo");
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">

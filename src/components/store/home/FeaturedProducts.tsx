@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useCategories, useSubcategories } from "@/services/categories";
 import { useProductsFast } from "@/services/products";
+import { filterByPlatform } from "@/lib/products";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ROUTES } from "@/config/routes";
 import Image from "next/image";
@@ -227,7 +228,7 @@ function SubcategoryProducts({
   const { data, isLoading } = useProductsFast(filters as any);
 
   const products: Product[] = Array.isArray(data?.data?.products)
-    ? data.data.products.slice(0, 9)
+    ? filterByPlatform(data.data.products as Product[], "wizard").slice(0, 9)
     : [];
 
   if (isLoading) {

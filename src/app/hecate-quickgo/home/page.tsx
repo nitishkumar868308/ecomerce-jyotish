@@ -6,8 +6,13 @@ import Image from "next/image";
 import { Zap, Play } from "lucide-react";
 import { useCategories } from "@/services/categories";
 import { useProducts } from "@/services/products";
+import { filterByPlatform } from "@/lib/products";
 import { useBanners, useVideoStories } from "@/services/banners";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
+import { resolveAssetUrl } from "@/lib/assetUrl";
+import { filterBannersForStorefront } from "@/lib/storefrontFilters";
+import { useQuickGoStore } from "@/stores/useQuickGoStore";
+import { useLocationStates } from "@/services/admin/location";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination } from "swiper/modules";
 // @ts-ignore
@@ -26,64 +31,67 @@ export default function QuickGoHomePage() {
   const { data: productsData, isLoading: prodLoading } = useProducts({ limit: 8 });
   const { data: banners, isLoading: bannerLoading } = useBanners();
   const { data: videoStories } = useVideoStories();
-  const products = productsData?.data ?? [];
+  const { data: locations } = useLocationStates();
+  const quickGoCity = useQuickGoStore((s) => s.city);
+  const products = filterByPlatform(productsData?.data, "quickgo");
 
-  // Filter banners for quickgo - check for state-based filtering
-  const selectedState =
-    typeof window !== "undefined" ? localStorage.getItem("selectedState") : null;
+  // Resolve the user's picked city back to every Location (State) row with that
+  // city — any of those row IDs are a valid match for a banner's states list.
+  const cityStateIds = React.useMemo(() => {
+    if (!quickGoCity) return [] as number[];
+    return (locations ?? [])
+      .filter((l) => l.city && l.city.toLowerCase() === quickGoCity.toLowerCase())
+      .map((l) => l.id);
+  }, [locations, quickGoCity]);
 
-  const activeBanners = React.useMemo(() => {
-    if (!banners) return [];
-    return banners.filter((b) => {
-      if (!b.active) return false;
-      // If banner has state restrictions, check match
-      if (b.states && b.states.length > 0 && selectedState) {
-        // Allow banners that include the selected state or have no state restriction
-        return true; // Backend should filter, but show all active for now
-      }
-      return true;
-    });
-  }, [banners, selectedState]);
+  const activeBanners = React.useMemo(
+    () =>
+      filterBannersForStorefront(banners, {
+        cityStateIds,
+      }),
+    [banners, cityStateIds],
+  );
 
   const activeVideos = videoStories?.filter((v) => v.active) ?? [];
 
   return (
     <>
-      {/* Banner Slider */}
+      {/* Banner Slider - fully responsive (matches wizard HeroSlider) */}
       {bannerLoading ? (
-        <section className="w-full">
-          <Skeleton className="aspect-[16/7] w-full max-h-[200px] sm:max-h-[300px] lg:max-h-[400px] rounded-none" />
+        <section className="relative w-full bg-[var(--bg-secondary)]">
+          <div className="w-full" style={{ paddingBottom: "31.25%" }} />
         </section>
       ) : activeBanners.length > 0 ? (
-        <section className="relative w-full overflow-hidden">
+        <section className="relative w-full overflow-hidden bg-[var(--bg-secondary)]">
           <Swiper
             modules={[Autoplay, Pagination]}
             autoplay={{ delay: 5000, disableOnInteraction: false }}
             pagination={{
               clickable: true,
               bulletClass:
-                "inline-block w-2 h-2 rounded-full bg-white/50 mx-1 cursor-pointer transition-all duration-300",
-              bulletActiveClass: "!bg-white !w-6 !rounded-full",
+                "inline-block w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white/50 mx-0.5 sm:mx-1 cursor-pointer transition-all duration-300",
+              bulletActiveClass: "!bg-white !w-5 sm:!w-7 !rounded-full",
             }}
             loop={activeBanners.length > 1}
             speed={700}
-            className="aspect-[16/7] w-full max-h-[200px] sm:max-h-[300px] lg:max-h-[400px]"
+            className="w-full"
           >
             {activeBanners.map((banner, idx) => (
               <SwiperSlide key={banner.id}>
-                <div className="relative w-full h-full">
+                <div className="relative w-full">
                   <Image
-                    src={banner.image || "/image/placeholder.jpg"}
+                    src={banner.image ? resolveAssetUrl(banner.image) : "/image/placeholder.jpg"}
                     alt={banner.text || `Banner ${idx + 1}`}
-                    fill
-                    className="object-cover"
+                    width={1920}
+                    height={600}
+                    className="w-full h-auto object-contain"
                     priority={idx === 0}
                     sizes="100vw"
                   />
                   {banner.text && (
                     <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/60 via-transparent to-transparent">
-                      <div className="w-full px-4 pb-6 sm:px-8 sm:pb-10">
-                        <h2 className="max-w-xl text-base font-bold text-white drop-shadow-lg sm:text-xl lg:text-3xl">
+                      <div className="w-full px-3 pb-6 sm:px-8 sm:pb-10 lg:px-14 lg:pb-16">
+                        <h2 className="max-w-2xl text-sm font-bold text-white drop-shadow-lg sm:text-xl md:text-2xl lg:text-4xl xl:text-5xl leading-tight">
                           {banner.text}
                         </h2>
                       </div>
@@ -195,7 +203,7 @@ export default function QuickGoHomePage() {
                   {cat.image ? (
                     <div className="relative h-12 w-12 overflow-hidden rounded-lg sm:h-14 sm:w-14">
                       <Image
-                        src={cat.image}
+                        src={resolveAssetUrl(cat.image)}
                         alt={cat.name}
                         fill
                         className="object-cover"

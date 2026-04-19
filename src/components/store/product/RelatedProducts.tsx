@@ -4,6 +4,7 @@ import React, { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProducts } from "@/services/products";
+import { filterByPlatform, type StorePlatform } from "@/lib/products";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ProductCard } from "./ProductCard";
 
@@ -11,12 +12,14 @@ interface RelatedProductsProps {
   categoryId?: number;
   currentProductId: string | number;
   className?: string;
+  platform?: StorePlatform;
 }
 
 export function RelatedProducts({
   categoryId,
   currentProductId,
   className,
+  platform = "wizard",
 }: RelatedProductsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -25,7 +28,9 @@ export function RelatedProducts({
     limit: 12,
   });
 
-  const products = data?.data?.filter((p) => p.id !== currentProductId) ?? [];
+  const products = filterByPlatform(data?.data, platform).filter(
+    (p) => p.id !== currentProductId,
+  );
 
   const scroll = (direction: "left" | "right") => {
     if (!scrollRef.current) return;

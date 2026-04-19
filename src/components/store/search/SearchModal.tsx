@@ -8,6 +8,7 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useProducts } from "@/services/products";
+import { filterByPlatform } from "@/lib/products";
 import { ProductCard } from "@/components/store/product/ProductCard";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 
@@ -25,7 +26,7 @@ export function SearchModal({ isOpen, onClose, className }: SearchModalProps) {
     query.length >= 2 ? { search: query, limit: 12 } : undefined
   );
 
-  const products = data?.data ?? [];
+  const products = filterByPlatform(data?.data, "wizard");
   const hasSearched = query.length >= 2;
 
   const handleSearch = useCallback((value: string) => {
