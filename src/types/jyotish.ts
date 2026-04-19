@@ -45,6 +45,13 @@ export interface ChatSession {
   endedAt?: string;
   duration?: number;
   totalAmount?: number;
+  grossAmount?: number;
+  gstPercent?: number;
+  gstAmount?: number;
+  commissionPercent?: number;
+  commissionAmount?: number;
+  astrologerAmount?: number;
+  platformAmount?: number;
   messages?: ChatMessage[];
   createdAt: string;
 }
