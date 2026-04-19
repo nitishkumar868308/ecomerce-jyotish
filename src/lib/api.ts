@@ -261,6 +261,12 @@ export const ENDPOINTS = {
       CREATE: "/jyotish/ad-campaign",
       UPDATE: (id: string | number) => `/jyotish/ad-campaign/${id}`,
     },
+    FREE_OFFERS: {
+      LIST: "/jyotish/free-offers",
+      CREATE: "/jyotish/free-offers",
+      UPDATE: (id: string | number) => `/jyotish/free-offers/${id}`,
+      DELETE: (id: string | number) => `/jyotish/free-offers/${id}`,
+    },
     PROFILE_EDIT: {
       LIST: "/jyotish/profile-edit-requests",
       CREATE: "/jyotish/profile-edit-requests",

@@ -30,6 +30,9 @@ export interface Astrologer {
   approvedAt?: string;
   approvedBy?: number | string;
   rejectionReason?: string;
+  freeOfferActive?: boolean;
+  freeOfferMessage?: string;
+  freeSessionsRemaining?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +56,9 @@ export interface ChatSession {
   astrologerAmount?: number;
   platformAmount?: number;
   messages?: ChatMessage[];
+  isFree?: boolean;
+  freeOfferSource?: "ASTROLOGER" | "ADMIN";
+  freeOfferId?: number;
   createdAt: string;
 }
 
@@ -108,4 +114,20 @@ export interface JyotishSlot {
   startTime: string;
   endTime: string;
   isBooked: boolean;
+}
+
+export interface FreeConsultationOffer {
+  id: number;
+  astrologerId: number;
+  astrologer?: Astrologer;
+  title: string;
+  description?: string;
+  astrologerAmount: number;
+  adminAmount: number;
+  sessionsCap: number;
+  sessionsUsed: number;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+  createdAt: string;
 }
