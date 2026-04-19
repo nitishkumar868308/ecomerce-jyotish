@@ -323,17 +323,22 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           </div>
 
           {/* Offers + Bulk Price */}
-          <OfferList
-            offers={product.offers}
-            bulkPrice={product.bulkPrice}
-            minQuantity={product.minQuantity}
-            claimedOfferIds={
-              cartItems
-                ?.filter((ci) => ci.productId === product.id && ci.offerSummary?.claimed)
-                .map((ci) => ci.offerSummary!.offerId) ?? []
-            }
-            bulkApplied={isBulkActive}
-          />
+          {((product.primaryOffer && product.primaryOffer.active) ||
+            (Array.isArray(product.offers) && product.offers.some((o) => o.active)) ||
+            (parseFloat(product.bulkPrice ?? "0") > 0 &&
+              parseInt(product.minQuantity ?? "0", 10) > 0)) && (
+            <OfferList
+              offers={product.offers}
+              bulkPrice={product.bulkPrice}
+              minQuantity={product.minQuantity}
+              claimedOfferIds={
+                cartItems
+                  ?.filter((ci) => ci.productId === product.id && ci.offerSummary?.claimed)
+                  .map((ci) => ci.offerSummary!.offerId) ?? []
+              }
+              bulkApplied={isBulkActive}
+            />
+          )}
 
           {/* Bulk pricing tiers */}
           <div className="mt-3">
@@ -439,13 +444,16 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           )}
 
           {/* Bulk price indicator */}
-          {isBulkActive && (
-            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/20">
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Bulk price active: {format(bulkPrice)} each ({totalProductQty} total in cart)
-              </p>
-            </div>
-          )}
+          {parseFloat(product.bulkPrice ?? "0") > 0 &&
+            parseInt(product.minQuantity ?? "0", 10) > 0 && (
+              <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/20">
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                  {isBulkActive
+                    ? `Bulk price active: ${format(bulkPrice)} each (${totalProductQty} total in cart)`
+                    : `Buy ${parseInt(product.minQuantity ?? "0", 10)}+ units to get ${format(bulkPrice)} each`}
+                </p>
+              </div>
+            )}
 
           {/* Desktop: Quantity + Add to Cart OR Increment/Decrement */}
           <div className="hidden lg:block">
