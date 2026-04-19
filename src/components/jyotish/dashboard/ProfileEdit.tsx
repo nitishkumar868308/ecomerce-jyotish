@@ -144,6 +144,15 @@ export function ProfileEdit() {
     [profile?.pricePerMin, profile?.pricePerMinute],
   );
 
+  const freeInit = useMemo(
+    () => ({
+      freeOfferActive: Boolean(profile?.freeOfferActive),
+      freeOfferMessage: profile?.freeOfferMessage ?? "",
+      freeSessionsRemaining: String(profile?.freeSessionsRemaining ?? ""),
+    }),
+    [profile?.freeOfferActive, profile?.freeOfferMessage, profile?.freeSessionsRemaining],
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -323,6 +332,50 @@ export function ProfileEdit() {
               className={i}
             />
           </div>
+        )}
+      />
+
+      <SectionCard<{ freeOfferActive: boolean; freeOfferMessage: string; freeSessionsRemaining: string }>
+        astrologerId={astrologerId}
+        title="Free Consultation"
+        description="Offer a limited number of free sessions. Subject to admin approval. Admin's commission still applies per session."
+        initial={freeInit}
+        buildPayload={(s) => ({
+          freeOfferActive: s.freeOfferActive,
+          freeOfferMessage: s.freeOfferMessage,
+          freeSessionsRemaining: Number(s.freeSessionsRemaining) || 0,
+        })}
+        render={(s, set, i, l) => (
+          <>
+            <label className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={s.freeOfferActive}
+                onChange={(e) => set({ ...s, freeOfferActive: e.target.checked })}
+              />
+              Offer free consultations
+            </label>
+            <div>
+              <label className={l}>Message shown to customers</label>
+              <input
+                type="text"
+                value={s.freeOfferMessage}
+                onChange={(e) => set({ ...s, freeOfferMessage: e.target.value })}
+                className={i}
+                placeholder="First session free for new users"
+              />
+            </div>
+            <div>
+              <label className={l}>Sessions remaining (0 = unlimited)</label>
+              <input
+                type="number"
+                min={0}
+                value={s.freeSessionsRemaining}
+                onChange={(e) => set({ ...s, freeSessionsRemaining: e.target.value })}
+                className={i}
+              />
+            </div>
+          </>
         )}
       />
     </div>
