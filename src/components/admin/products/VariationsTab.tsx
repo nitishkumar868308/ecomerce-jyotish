@@ -106,21 +106,28 @@ export function VariationsTab({
                 key={row._key}
                 className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)]"
               >
-                <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedKey(isOpen ? null : row._key)
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setExpandedKey(isOpen ? null : row._key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setExpandedKey(isOpen ? null : row._key);
                     }
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]"
-                    aria-label={isOpen ? "Collapse" : "Expand"}
+                  }}
+                  className="flex cursor-pointer items-center gap-2 px-3 py-2 transition-colors hover:bg-[var(--bg-secondary)] sm:px-4"
+                >
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)]"
+                    aria-hidden
                   >
                     {isOpen ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
                       <ChevronRight className="h-4 w-4" />
                     )}
-                  </button>
+                  </span>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -139,15 +146,22 @@ export function VariationsTab({
                     </p>
                   </div>
 
-                  <Switch
-                    checked={row.active}
-                    onChange={(next) => updateRow(row._key, { active: next })}
-                    size="sm"
-                    label="Active"
-                  />
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      checked={row.active}
+                      onChange={(next) =>
+                        updateRow(row._key, { active: next })
+                      }
+                      size="sm"
+                      label="Active"
+                    />
+                  </div>
                   <button
                     type="button"
-                    onClick={() => onDeleteRequest(row._key)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteRequest(row._key);
+                    }}
                     className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-danger)]"
                     aria-label="Remove variation"
                   >
