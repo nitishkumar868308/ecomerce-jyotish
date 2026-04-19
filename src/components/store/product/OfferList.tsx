@@ -2,12 +2,12 @@
 
 import { Check } from "lucide-react";
 import type { Offer } from "@/types/product";
+import { usePrice } from "@/hooks/usePrice";
 
 interface OfferListProps {
   offers?: Offer[];
   bulkPrice?: string;
   minQuantity?: string;
-  currencySymbol?: string;
   claimedOfferIds?: number[];
   bulkApplied?: boolean;
 }
@@ -16,10 +16,11 @@ export function OfferList({
   offers,
   bulkPrice,
   minQuantity,
-  currencySymbol = "₹",
   claimedOfferIds = [],
   bulkApplied = false,
 }: OfferListProps) {
+  const { format } = usePrice();
+
   const activeOffers = offers?.filter((o) => o.active && !o.deleted) || [];
   const hasBulk = !!(bulkPrice && minQuantity);
 
@@ -57,8 +58,7 @@ export function OfferList({
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/20">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-              Buy {Number(minQuantity)}+ units at {currencySymbol}
-              {Number(bulkPrice).toLocaleString()} each
+              Buy {Number(minQuantity)}+ units at {format(Number(bulkPrice))} each
             </p>
             {bulkApplied && (
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-200 px-2 py-0.5 text-[10px] font-semibold text-blue-800 dark:bg-blue-800 dark:text-blue-300">
