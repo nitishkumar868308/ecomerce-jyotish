@@ -1,7 +1,7 @@
 "use client";
 
 import { useWalletBalance, useWalletTransactions } from "@/services/wallet";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { usePrice } from "@/hooks/usePrice";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -12,7 +12,7 @@ import { Wallet, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 export function WalletSection() {
   const { data: balance, isLoading: balLoading } = useWalletBalance();
   const { data: txData, isLoading: txLoading } = useWalletTransactions({});
-  const { format } = usePriceConverter();
+  const { format } = usePrice();
 
   return (
     <div className="space-y-6">

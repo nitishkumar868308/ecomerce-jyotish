@@ -5,7 +5,7 @@ import Image from "next/image";
 import { MapPin, CreditCard, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { usePrice } from "@/hooks/usePrice";
 
 interface OrderItem {
   id: number;
@@ -53,7 +53,7 @@ export function OrderReview({
   loading,
   className,
 }: OrderReviewProps) {
-  const { format } = usePriceConverter();
+  const { format } = usePrice();
 
   const paymentLabel =
     paymentMethod === "cod" ? "Cash on Delivery" : "Online Payment";

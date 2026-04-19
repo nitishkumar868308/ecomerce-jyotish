@@ -5,7 +5,7 @@ import { Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { useApplyPromo } from "@/services/promo";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { usePrice } from "@/hooks/usePrice";
 
 interface AppliedPromo {
   code: string;
@@ -28,7 +28,7 @@ export function PromoCodeInput({
   const [code, setCode] = useState("");
   const [applied, setApplied] = useState<AppliedPromo | null>(null);
   const applyPromo = useApplyPromo();
-  const { format } = usePriceConverter();
+  const { format } = usePrice();
 
   const handleApply = () => {
     if (!code.trim()) return;

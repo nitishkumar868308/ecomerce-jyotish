@@ -6,7 +6,7 @@ import { Star, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { usePrice } from "@/hooks/usePrice";
 
 interface ConsultantCardProps {
   astrologer: {
@@ -29,7 +29,7 @@ export function ConsultantCard({
   onBook,
   className,
 }: ConsultantCardProps) {
-  const { format } = usePriceConverter();
+  const { format } = usePrice();
   const rating = astrologer.rating ?? 0;
 
   return (

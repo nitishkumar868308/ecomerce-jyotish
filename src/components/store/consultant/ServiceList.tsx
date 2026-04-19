@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useConsultantServices } from "@/services/consultant";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { usePrice } from "@/hooks/usePrice";
 import { Sparkles } from "lucide-react";
 import type { ConsultantService } from "@/types/consultant";
 
@@ -35,7 +35,7 @@ function ServiceCard({
   service: ConsultantService;
   onSelect?: (service: ConsultantService) => void;
 }) {
-  const { format } = usePriceConverter();
+  const { format } = usePrice();
 
   return (
     <button
