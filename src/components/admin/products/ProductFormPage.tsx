@@ -9,6 +9,7 @@ import {
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Tabs } from "@/components/ui/Tabs";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -232,6 +233,7 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
     status: "idle" | "checking" | "ok" | "taken";
     message?: string;
   }>({ status: "idle" });
+  const [deleteKey, setDeleteKey] = useState<string | null>(null);
   // Keeps track of whether we've initialised from `initial` yet (hydrate once).
   const hydratedRef = useRef(false);
 
@@ -415,6 +417,50 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
               })),
       })),
     );
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteKey) return;
+    const row = state.variations.find((v) => v._key === deleteKey);
+    if (!row) {
+      setDeleteKey(null);
+      return;
+    }
+    const nextVariations = state.variations.filter(
+      (v) => v._key !== deleteKey,
+    );
+
+    // Build a map of attribute id → set of values still used by remaining variations.
+    const stillUsed = new Map<number, Set<string>>();
+    const attrByName = new Map<string, { id: number }>();
+    for (const a of attributes ?? []) attrByName.set(a.name.toLowerCase(), a);
+
+    for (const v of nextVariations) {
+      for (const c of v.attributeCombo) {
+        const attr = attrByName.get(c.name.toLowerCase());
+        if (!attr) continue;
+        const set = stillUsed.get(attr.id) ?? new Set<string>();
+        set.add(c.value);
+        stillUsed.set(attr.id, set);
+      }
+    }
+
+    // Drop values that aren't used by any remaining variation; drop attrs whose
+    // value list becomes empty as a result.
+    const nextSelections = state.attributeSelections
+      .map((s) => {
+        const used = stillUsed.get(s.attrId) ?? new Set<string>();
+        const values = s.values.filter((v) => used.has(v));
+        return { ...s, values };
+      })
+      .filter((s) => s.values.length > 0);
+
+    setState((st) => ({
+      ...st,
+      variations: nextVariations,
+      attributeSelections: nextSelections,
+    }));
+    setDeleteKey(null);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -864,12 +910,7 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
             onVariationsChange={(next) => patch("variations", next)}
             offerOptions={offerOptions}
             onFillFromDefaults={handleFillFromDefaults}
-            onDeleteRequest={(key) =>
-              patch(
-                "variations",
-                state.variations.filter((v) => v._key !== key),
-              )
-            }
+            onDeleteRequest={(key) => setDeleteKey(key)}
           />
         )}
 
@@ -881,6 +922,16 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
           />
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteKey !== null}
+        onClose={() => setDeleteKey(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete variation?"
+        message="This will permanently remove this variation. If its attribute values aren't used by any other variation, they'll also be unselected. This cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 }
