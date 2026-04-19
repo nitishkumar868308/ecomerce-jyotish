@@ -1,3 +1,12 @@
+export type AstrologerStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface JyotishTaxConfig {
+  id: number;
+  gstPercent: number;
+  updatedAt?: string;
+  updatedBy?: number | string;
+}
+
 export interface Astrologer {
   id: number;
   name: string;
@@ -16,6 +25,11 @@ export interface Astrologer {
   isActive: boolean;
   gallery?: string[];
   documents?: string[];
+  status: AstrologerStatus;
+  commissionPercent?: number;
+  approvedAt?: string;
+  approvedBy?: number | string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }
