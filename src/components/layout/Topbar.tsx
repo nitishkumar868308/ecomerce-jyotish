@@ -8,8 +8,10 @@ import { ChevronDown, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountryStore } from "@/stores/useCountryStore";
 import { useQuickGoStore } from "@/stores/useQuickGoStore";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { useLocationStates } from "@/services/admin/location";
 import { useCountryPricing } from "@/services/admin/shipping";
+import { useUpdateMyCountry } from "@/services/auth";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { ROUTES } from "@/config/routes";
 
@@ -72,6 +74,28 @@ export function Topbar({ className }: { className?: string }) {
   const openQuickGoModal = useQuickGoStore((s) => s.openModal);
 
   const { data: countryPricingRows = [], isLoading: isCountryPricingLoading } = useCountryPricing();
+
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const { mutate: updateMyCountry } = useUpdateMyCountry();
+  const countryCode = useCountryStore((s) => s.code);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSyncedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (lastSyncedRef.current === countryCode) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      updateMyCountry(
+        { country: countryCode },
+        { onSuccess: () => { lastSyncedRef.current = countryCode; } }
+      );
+    }, 500);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [countryCode, isLoggedIn, updateMyCountry]);
+
   const countries = countryPricingRows
     .filter((row) => row.active)
     .map((row) => ({
