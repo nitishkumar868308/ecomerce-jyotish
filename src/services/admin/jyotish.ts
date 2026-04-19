@@ -100,3 +100,63 @@ export function useRejectProfileEdit() {
     },
   });
 }
+
+export interface ApproveAstrologerPayload {
+  id: string | number;
+  commissionPercent: number;
+}
+
+export function useApproveAstrologer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, commissionPercent }: ApproveAstrologerPayload) => {
+      const { data } = await api.put(ENDPOINTS.JYOTISH.ASTROLOGER.APPROVE(id), {
+        commissionPercent,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "astrologers"] });
+    },
+  });
+}
+
+export interface RejectAstrologerPayload {
+  id: string | number;
+  rejectionReason: string;
+}
+
+export function useRejectAstrologer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, rejectionReason }: RejectAstrologerPayload) => {
+      const { data } = await api.put(ENDPOINTS.JYOTISH.ASTROLOGER.REJECT(id), {
+        rejectionReason,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "astrologers"] });
+    },
+  });
+}
+
+export interface SetCommissionPayload {
+  id: string | number;
+  commissionPercent: number;
+}
+
+export function useSetAstrologerCommission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, commissionPercent }: SetCommissionPayload) => {
+      const { data } = await api.put(ENDPOINTS.JYOTISH.ASTROLOGER.SET_COMMISSION(id), {
+        commissionPercent,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "astrologers"] });
+    },
+  });
+}
