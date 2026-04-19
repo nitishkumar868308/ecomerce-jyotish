@@ -81,6 +81,8 @@ export const ROUTES = {
     JYOTISH_ASTROLOGER_DETAIL: "/admin/jyotish/astrologer-detail",
     JYOTISH_PROFILE_EDIT_REQUESTS: "/admin/jyotish/profile-edit-requests",
     JYOTISH_TAX_SETTINGS: "/admin/jyotish/tax-settings",
+    JYOTISH_SERVICES: "/admin/jyotish/services",
+    JYOTISH_DURATIONS: "/admin/jyotish/durations",
   },
 
   // Jyotish
