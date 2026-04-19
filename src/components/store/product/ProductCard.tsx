@@ -6,7 +6,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { usePrice } from "@/hooks/usePrice";
+import { productImage } from "@/lib/assetUrl";
 import { ROUTES } from "@/config/routes";
 import type { Product } from "@/types/product";
 
@@ -17,15 +18,14 @@ interface ProductCardProps {
 
 export function ProductCard({ product, className }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const { format } = usePriceConverter();
+  const { format } = usePrice();
+  const imgSrc = productImage(product, 0);
 
   const price = Number(product.price) || 0;
   const mrp = Number(product.MRP) || 0;
   const discount = mrp > 0 && mrp > price
     ? Math.round(((mrp - price) / mrp) * 100)
     : 0;
-
-  const thumbnail = product.image?.[0] || "/placeholder.png";
 
   return (
     <motion.div
@@ -41,7 +41,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
           {/* Image Container */}
           <div className="relative aspect-square overflow-hidden bg-[var(--bg-secondary)]">
             <Image
-              src={thumbnail}
+              src={imgSrc}
               alt={product.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -88,11 +88,11 @@ export function ProductCard({ product, className }: ProductCardProps) {
             {/* Price */}
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-base font-bold text-[var(--text-primary)] sm:text-lg">
-                {product.currencySymbol || ""}{product.price}
+                <span>{format(product.price)}</span>
               </span>
               {mrp > price && (
                 <span className="text-sm text-[var(--text-secondary)] line-through">
-                  {product.currencySymbol || ""}{product.MRP}
+                  <span>{format(product.MRP)}</span>
                 </span>
               )}
             </div>
