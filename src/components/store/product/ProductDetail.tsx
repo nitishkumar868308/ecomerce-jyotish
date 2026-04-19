@@ -15,6 +15,7 @@ import { BulkPricingList } from "./BulkPricingList";
 import { ProductDescription } from "./ProductDescription";
 import { QuantityControl } from "@/components/store/shared/QuantityControl";
 import { ProductVariationGrid } from "./ProductVariationGrid";
+import { ProductTabs } from "./ProductTabs";
 import type { Product, ProductVariation } from "@/types/product";
 
 interface ProductDetailProps {
@@ -393,6 +394,9 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
 
       {/* Long description */}
       {activeDescription && <ProductDescription html={activeDescription} />}
+
+      {/* Tabs: Description / Product Details / Reviews & Rating */}
+      <ProductTabs product={product} />
 
       {/* Mobile Fixed Bottom Bar */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex items-stretch gap-3 border-t border-[var(--border-primary)] bg-[var(--bg-primary)] px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] lg:hidden">
