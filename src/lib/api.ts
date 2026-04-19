@@ -58,12 +58,14 @@ export const ENDPOINTS = {
     RESET_PASSWORD: "/auth/reset-password",
     GET_ALL_USERS: "/auth/getAllUser",
     UPDATE_USER: "/auth/updateUser",
+    DELETE_USER: (id: number) => `/auth/users/${id}`,
   },
   PRODUCTS: {
     LIST: "/products",
     FAST: "/products/fast",
     ALL: "/products/all",
     SINGLE: (id: string | number) => `/products/${id}`,
+    CHECK_SKU: "/products/check-sku",
     MASTER: "/masterProducts",
   },
   CATEGORIES: {
@@ -129,6 +131,8 @@ export const ENDPOINTS = {
     LIST: "/country-tax",
     ALL: "/country-tax/all",
     BY_COUNTRY: (code: string) => `/country-tax?country=${code}`,
+    UPDATE: (id: string | number) => `/country-tax/${id}`,
+    DELETE: (id: string | number) => `/country-tax/${id}`,
   },
   SHIPPING_PRICING: {
     LIST: "/shipping-pricing",
@@ -140,38 +144,54 @@ export const ENDPOINTS = {
   OFFERS: {
     LIST: "/offers",
     CREATE: "/offers",
-    UPDATE: (id: string | number) => `/offers/${id}`,
-    DELETE: (id: string | number) => `/offers/${id}`,
+    // Backend PUT/DELETE take the id in the request body, not the path.
+    UPDATE: "/offers",
+    DELETE: "/offers",
   },
   PROMO_CODES: {
     LIST: "/promo-codes",
     CREATE: "/promo-codes",
     APPLY: "/promo-codes/apply",
+    UPDATE: (id: string | number) => `/promo-codes/${id}`,
     DELETE: (id: string | number) => `/promo-codes/${id}`,
+    USAGE: "/promo-codes/usage",
   },
   TAGS: {
     LIST: "/tags",
+    SINGLE: (id: string | number) => `/tags/${id}`,
     CREATE: "/tags",
+    UPDATE: (id: string | number) => `/tags/${id}`,
     DELETE: (id: string | number) => `/tags/${id}`,
   },
   ATTRIBUTES: {
     LIST: "/attributes",
+    SINGLE: (id: string | number) => `/attributes/${id}`,
     CREATE: "/attributes",
+    UPDATE: (id: string | number) => `/attributes/${id}`,
     DELETE: (id: string | number) => `/attributes/${id}`,
   },
   WAREHOUSE: {
     LIST: "/warehouse",
     CREATE: "/warehouse",
-    DELETE: (id: string | number) => `/warehouse/${id}`,
+    // Backend uses query-string ids for warehouse PUT/DELETE.
+    UPDATE: (id: string | number) => `/warehouse?id=${id}`,
+    DELETE: (id: string | number) => `/warehouse?id=${id}`,
+    PUBLIC_CITIES: "/warehouse/public-cities",
   },
   DONATIONS: {
     LIST: "/donations",
     CREATE: "/donations",
+    UPDATE: (id: string | number) => `/donations/${id}`,
+    DELETE: (id: string | number) => `/donations/${id}`,
     BY_COUNTRY: (code: string) => `/donations/country/${code}`,
+    CAMPAIGNS: "/donation-campaigns",
+    CAMPAIGN: (id: string | number) => `/donation-campaigns/${id}`,
+    DONORS: "/donations/donors",
   },
   VIDEO_STORY: {
     LIST: "/video-story",
     CREATE: "/video-story",
+    UPDATE: (id: string | number) => `/video-story/${id}`,
     DELETE: (id: string | number) => `/video-story/${id}`,
   },
   STATES: {
@@ -181,10 +201,17 @@ export const ENDPOINTS = {
   CONTACT: {
     SEND: "/contact",
     LIST: "/contact",
+    REPLY: (id: string | number) => `/contact/${id}/reply`,
+    MARK_READ: (id: string | number) => `/contact/${id}/read`,
+    DELETE: (id: string | number) => `/contact/${id}`,
   },
   MARKET_LINKS: {
     LIST: "/market-links",
+    BY_PRODUCT: (productId: string) =>
+      `/market-links?productId=${encodeURIComponent(productId)}`,
+    SINGLE: (id: string | number) => `/market-links/${id}`,
     CREATE: "/market-links",
+    UPDATE: (id: string | number) => `/market-links/${id}`,
     DELETE: (id: string | number) => `/market-links/${id}`,
   },
   SKU_MAPPING: {
@@ -220,6 +247,9 @@ export const ENDPOINTS = {
       LIST: "/jyotish/astrologer",
       SINGLE: (id: string | number) => `/jyotish/astrologer/${id}`,
       UPDATE: (id: string | number) => `/jyotish/astrologer/${id}`,
+      APPROVE: (id: string | number) => `/jyotish/astrologer/${id}/approve`,
+      REJECT: (id: string | number) => `/jyotish/astrologer/${id}/reject`,
+      SET_COMMISSION: (id: string | number) => `/jyotish/astrologer/${id}/commission`,
     },
     CHAT: {
       SESSIONS: "/jyotish/chat/sessions",
@@ -240,6 +270,10 @@ export const ENDPOINTS = {
     SERVICES: "/book_consultant/services",
     SLOTS: "/book_consultant/slots",
     DURATIONS: "/book_consultant/duration",
+    TAX_CONFIG: {
+      GET: "/jyotish/config/tax",
+      UPDATE: "/jyotish/config/tax",
+    },
   },
   BOOK_CONSULTANT: {
     SERVICES: "/book_consultant/services",
