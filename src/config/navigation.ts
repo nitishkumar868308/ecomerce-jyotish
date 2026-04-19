@@ -36,7 +36,7 @@ export interface NavItem {
 export const ADMIN_NAV: NavItem[] = [
   { label: "Dashboard", href: ROUTES.ADMIN.DASHBOARD, icon: LayoutDashboard },
   {
-    label: "Messages",
+    label: "Contact Messages",
     href: ROUTES.ADMIN.CONTACT_MESSAGES,
     icon: MessageSquare,
   },
@@ -123,6 +123,7 @@ export const ADMIN_NAV: NavItem[] = [
       { label: "Ad Campaigns", href: ROUTES.ADMIN.JYOTISH_AD_CAMPAIGN },
       { label: "Astrologer Details", href: ROUTES.ADMIN.JYOTISH_ASTROLOGER_DETAIL },
       { label: "Profile Edit Requests", href: ROUTES.ADMIN.JYOTISH_PROFILE_EDIT_REQUESTS },
+      { label: "Tax Settings", href: ROUTES.ADMIN.JYOTISH_TAX_SETTINGS, icon: Percent },
     ],
   },
 ];
