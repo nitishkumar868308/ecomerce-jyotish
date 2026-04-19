@@ -341,10 +341,14 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
       short: state.short,
       description: state.description,
       active: true,
-      offerId: "",
+      offerId: state.offerId,
       barCode: state.barCode,
-      bulkPricingTiers: [],
-      images: [],
+      bulkPricingTiers: state.bulkPricingTiers.map((t) => ({ ...t })),
+      images: state.images.map((s) => ({
+        key: nextSlotKey(),
+        file: s.file,
+        persisted: s.persisted,
+      })),
       tagIds: state.tagIds,
     }));
     patch("variations", [...state.variations, ...additions]);
@@ -365,10 +369,14 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
         short: state.short,
         description: state.description,
         active: true,
-        offerId: "",
+        offerId: state.offerId,
         barCode: state.barCode,
-        bulkPricingTiers: [],
-        images: [],
+        bulkPricingTiers: state.bulkPricingTiers.map((t) => ({ ...t })),
+        images: state.images.map((s) => ({
+          key: nextSlotKey(),
+          file: s.file,
+          persisted: s.persisted,
+        })),
         tagIds: state.tagIds,
       },
     ]);
@@ -385,6 +393,19 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
         short: v.short || state.short,
         description: v.description || state.description,
         barCode: v.barCode || state.barCode,
+        offerId: v.offerId || state.offerId,
+        bulkPricingTiers:
+          v.bulkPricingTiers.length > 0
+            ? v.bulkPricingTiers
+            : state.bulkPricingTiers.map((t) => ({ ...t })),
+        images:
+          v.images.length > 0
+            ? v.images
+            : state.images.map((s) => ({
+                key: nextSlotKey(),
+                file: s.file,
+                persisted: s.persisted,
+              })),
       })),
     );
   };
