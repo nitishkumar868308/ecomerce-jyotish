@@ -12,6 +12,7 @@ const sideLinks = [
   { href: "/jyotish/astrologer-dashboard", label: "Overview", icon: "\u2302" },
   { href: "/jyotish/astrologer-dashboard/profile", label: "Profile", icon: "\u263A" },
   { href: "/jyotish/astrologer-dashboard/wallet", label: "Wallet", icon: "\u20B9" },
+  { href: "/jyotish/astrologer-dashboard/ad-campaigns", label: "Ad Campaigns", icon: "\u2606" },
 ];
 
 export default function AstrologerDashboardPage() {
