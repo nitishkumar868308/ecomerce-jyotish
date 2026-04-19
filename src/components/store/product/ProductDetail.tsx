@@ -14,6 +14,7 @@ import { OfferList } from "./OfferList";
 import { BulkPricingList } from "./BulkPricingList";
 import { ProductDescription } from "./ProductDescription";
 import { QuantityControl } from "@/components/store/shared/QuantityControl";
+import { ProductVariationGrid } from "./ProductVariationGrid";
 import type { Product, ProductVariation } from "@/types/product";
 
 interface ProductDetailProps {
@@ -21,26 +22,6 @@ interface ProductDetailProps {
   className?: string;
 }
 
-/**
- * Parse variationName like "Color: White / Type of wax: Pure Beeswax"
- * into { "Color": "White", "Type of wax": "Pure Beeswax" }
- */
-function parseVariationName(
-  variationName?: string
-): Record<string, string> {
-  if (!variationName) return {};
-  const parts = variationName.split("/").map((p) => p.trim());
-  const result: Record<string, string> = {};
-  for (const part of parts) {
-    const colonIdx = part.indexOf(":");
-    if (colonIdx > 0) {
-      const key = part.slice(0, colonIdx).trim();
-      const val = part.slice(colonIdx + 1).trim();
-      if (key && val) result[key] = val;
-    }
-  }
-  return result;
-}
 
 export function ProductDetail({ product, className }: ProductDetailProps) {
   const { format } = usePrice();
@@ -117,34 +98,29 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
     product.description ||
     "";
 
-  // Parse variations into attribute groups from variationName
-  const { variationGroups, parsedVariations } = useMemo(() => {
-    if (!sortedVariations || sortedVariations.length === 0)
-      return { variationGroups: {} as Record<string, string[]>, parsedVariations: new Map<string, Record<string, string>>() };
-
+  // Parse each variation's attributes (try structured attributes first, fallback to variationName)
+  const parsedVariations = useMemo(() => {
     const parsed = new Map<string, Record<string, string>>();
-    const groups: Record<string, Set<string>> = {};
-
     for (const v of sortedVariations) {
-      // Try attributes first, fallback to parsing variationName
       const attrs =
         v.attributes && Object.keys(v.attributes).length > 0
           ? v.attributes
-          : parseVariationName(v.variationName);
-
+          : (() => {
+              const name = v.variationName ?? "";
+              if (!name) return {};
+              return name.split("/").reduce<Record<string, string>>((acc, chunk) => {
+                const colonIdx = chunk.indexOf(":");
+                if (colonIdx > 0) {
+                  const k = chunk.slice(0, colonIdx).trim();
+                  const val = chunk.slice(colonIdx + 1).trim();
+                  if (k && val) acc[k] = val;
+                }
+                return acc;
+              }, {});
+            })();
       parsed.set(v.id, attrs);
-
-      for (const [key, val] of Object.entries(attrs)) {
-        if (!groups[key]) groups[key] = new Set();
-        groups[key].add(val);
-      }
     }
-
-    const variationGroups = Object.fromEntries(
-      Object.entries(groups).map(([key, valSet]) => [key, Array.from(valSet)])
-    );
-
-    return { variationGroups, parsedVariations: parsed };
+    return parsed;
   }, [sortedVariations]);
 
   // Track selected attributes across all groups
@@ -169,21 +145,15 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
   const cartQty = currentCartItem?.quantity ?? 0;
   const isInCart = cartQty > 0;
 
-  // Get cart count for a specific variation's attributes
-  const getVariationCartCount = (variationId: string): number => {
-    if (!cartItems) return 0;
-    const varAttrs = parsedVariations.get(variationId) || {};
-    return cartItems
-      .filter((ci) => {
-        if (ci.productId !== product.id) return false;
-        const ciAttrs = (ci.attributes || {}) as Record<string, string>;
-        const keys1 = Object.keys(varAttrs).sort();
-        const keys2 = Object.keys(ciAttrs).sort();
-        if (keys1.length !== keys2.length) return false;
-        return keys1.every((k, i) => k === keys2[i] && varAttrs[k] === ciAttrs[k]);
-      })
-      .reduce((sum, ci) => sum + ci.quantity, 0);
-  };
+  // Build a per-variation cart count map keyed by variationId
+  const cartCountByVariationId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const item of cartItems ?? []) {
+      if (!item.variationId) continue;
+      map[item.variationId] = (map[item.variationId] ?? 0) + item.quantity;
+    }
+    return map;
+  }, [cartItems]);
 
   // Total qty of this product across all colors (for bulk check)
   const totalProductQty = useMemo(() => {
@@ -238,25 +208,6 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
     setSelectedVariation(variation);
     setQuantity(1);
   };
-
-  // Find matching variation when user clicks an attribute value
-  const findVariationByAttr = (
-    attrKey: string,
-    attrVal: string
-  ): ProductVariation | undefined => {
-    // Build desired attrs: current selected attrs but override the clicked key
-    const desired = { ...selectedAttrs, [attrKey]: attrVal };
-
-    return sortedVariations.find((v) => {
-      const vAttrs = parsedVariations.get(v.id) || {};
-      return Object.entries(desired).every(([k, val]) => vAttrs[k] === val);
-    }) || sortedVariations.find((v) => {
-      const vAttrs = parsedVariations.get(v.id) || {};
-      return vAttrs[attrKey] === attrVal;
-    });
-  };
-
-  const hasVariationGroups = Object.keys(variationGroups).length > 0;
 
   return (
     <div className={cn("pb-20 lg:pb-0", className)}>
@@ -357,89 +308,13 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
 
           {/* Variations */}
           {sortedVariations && sortedVariations.length > 0 && (
-            <div className="mb-5 space-y-4">
-              {hasVariationGroups ? (
-                Object.entries(variationGroups).map(
-                  ([attrKey, attrValues]) => (
-                    <div key={attrKey}>
-                      <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-                        {attrKey}
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {attrValues.map((val) => {
-                          const isSelected = selectedAttrs[attrKey] === val;
-                          const matchingVar = findVariationByAttr(
-                            attrKey,
-                            val
-                          );
-                          const isOutOfStock =
-                            matchingVar && Number(matchingVar.stock) <= 0;
-
-                          const varCartCount = matchingVar ? getVariationCartCount(matchingVar.id) : 0;
-
-                          return (
-                            <button
-                              key={val}
-                              onClick={() => {
-                                if (matchingVar && !isOutOfStock) {
-                                  handleVariationSelect(matchingVar);
-                                }
-                              }}
-                              disabled={!!isOutOfStock}
-                              className={cn(
-                                "relative rounded-lg border px-4 py-2 text-sm font-medium transition-all",
-                                isSelected
-                                  ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-white shadow-sm"
-                                  : isOutOfStock
-                                    ? "cursor-not-allowed border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-muted)] line-through opacity-50"
-                                    : "border-[var(--border-primary)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/5"
-                              )}
-                            >
-                              {val}
-                              {varCartCount > 0 && (
-                                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                                  {varCartCount}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )
-                )
-              ) : (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-                    Variant
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {sortedVariations.map((v) => {
-                      const isSelected = selectedVariation?.id === v.id;
-                      const isOutOfStock = Number(v.stock) <= 0;
-                      return (
-                        <button
-                          key={v.id}
-                          onClick={() =>
-                            !isOutOfStock && handleVariationSelect(v)
-                          }
-                          disabled={isOutOfStock}
-                          className={cn(
-                            "rounded-lg border px-4 py-2 text-sm font-medium transition-all",
-                            isSelected
-                              ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-white shadow-sm"
-                              : isOutOfStock
-                                ? "cursor-not-allowed border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-muted)] line-through opacity-50"
-                                : "border-[var(--border-primary)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/5"
-                          )}
-                        >
-                          {v.variationName || v.name || v.sku}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+            <div className="mb-5">
+              <ProductVariationGrid
+                variations={sortedVariations}
+                selectedId={selectedVariation?.id ?? null}
+                onSelect={(v) => handleVariationSelect(v)}
+                cartCountByVariationId={cartCountByVariationId}
+              />
             </div>
           )}
 
