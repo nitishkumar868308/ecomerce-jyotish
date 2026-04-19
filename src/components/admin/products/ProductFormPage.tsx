@@ -144,6 +144,7 @@ function hydrateFromProduct(
     (v) => ({
       _key: `var-${v.id}`,
       id: v.id,
+      sortOrder: typeof v.sortOrder === "number" ? v.sortOrder : undefined,
       attributeCombo: Array.isArray(v.attributeCombo) ? v.attributeCombo : [],
       variationName: v.variationName ?? "",
       sku: v.sku ?? "",
@@ -173,6 +174,12 @@ function hydrateFromProduct(
         : [],
     }),
   );
+
+  variations.sort((a, b) => {
+    const ao = a.sortOrder ?? 999999;
+    const bo = b.sortOrder ?? 999999;
+    return ao - bo;
+  });
 
   const marketLinks: MarketLinkRow[] = ((p.marketLinks ?? []) as any[]).map(
     (m) => ({
@@ -467,7 +474,8 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
 
     // For each variation, upload its images in turn.
     const variationsPayload = [] as Array<Record<string, unknown>>;
-    for (const v of state.variations) {
+    for (let i = 0; i < state.variations.length; i++) {
+      const v = state.variations[i];
       const urls = await uploadImageSlots(v.images, "product-variations");
       variationsPayload.push({
         variationName: v.variationName,
@@ -485,6 +493,8 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
         bulkPricingTiers: v.bulkPricingTiers,
         attributeCombo: v.attributeCombo,
         tagIds: v.tagIds,
+        sortOrder: i,
+        id: v.id,
       });
     }
 

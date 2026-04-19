@@ -64,6 +64,7 @@ export interface ProductVariation {
   offerId?: number;
   otherCountriesPrice?: string;
   dimension?: Record<string, unknown>;
+  sortOrder?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -77,13 +78,23 @@ export interface ProductAttribute {
 export interface Tag {
   id: number;
   name: string;
+  slug?: string;
+  active?: boolean;
+  image?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface MarketLink {
-  id: number;
-  productId: string;
-  platform: string;
+  id: string;
+  productId?: string | null;
+  name: string;
   url: string;
+  countryName: string;
+  countryCode: string;
+  deleted?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Offer {
