@@ -3,8 +3,10 @@
 import React from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useAstrologerProfile } from "@/services/jyotish/profile";
 import { AstrologerStats } from "@/components/jyotish/dashboard/AstrologerStats";
 import { SessionHistory } from "@/components/jyotish/dashboard/SessionHistory";
+import { StatusBanner } from "@/components/jyotish/dashboard/StatusBanner";
 
 const sideLinks = [
   { href: "/jyotish/astrologer-dashboard", label: "Overview", icon: "\u2302" },
@@ -14,6 +16,7 @@ const sideLinks = [
 
 export default function AstrologerDashboardPage() {
   const { user } = useAuthStore();
+  const { data: astrologer } = useAstrologerProfile(user?.id ?? "");
 
   return (
     <div className="mx-auto flex max-w-7xl gap-6 px-4 py-8 sm:px-6">
@@ -50,6 +53,12 @@ export default function AstrologerDashboardPage() {
 
       {/* Main */}
       <div className="min-w-0 flex-1">
+        {astrologer && <StatusBanner astrologer={astrologer} />}
+        {astrologer?.status === "APPROVED" && astrologer.commissionPercent != null && (
+          <div className="mt-2 inline-flex rounded-full border border-[var(--jy-border,theme(colors.white/20))] bg-[var(--jy-bg-secondary)] px-3 py-1 text-xs text-[var(--jy-text-secondary)]">
+            Commission: {astrologer.commissionPercent}%
+          </div>
+        )}
         <h1 className="mb-6 text-2xl font-bold">Dashboard Overview</h1>
         <AstrologerStats />
         <div className="mt-8">
