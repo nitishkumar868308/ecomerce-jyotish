@@ -276,9 +276,19 @@ export const ENDPOINTS = {
     },
   },
   BOOK_CONSULTANT: {
-    SERVICES: "/book_consultant/services",
+    SERVICES: {
+      LIST: "/book_consultant/services",
+      CREATE: "/book_consultant/services",
+      UPDATE: (id: string | number) => `/book_consultant/services/${id}`,
+      DELETE: (id: string | number) => `/book_consultant/services/${id}`,
+    },
     SLOTS: "/book_consultant/slots",
-    DURATIONS: "/book_consultant/duration",
+    DURATIONS: {
+      LIST: "/book_consultant/duration",
+      CREATE: "/book_consultant/duration",
+      UPDATE: (id: string | number) => `/book_consultant/duration/${id}`,
+      DELETE: (id: string | number) => `/book_consultant/duration/${id}`,
+    },
     ASTROLOGERS: "/book_consultant/astrologers",
     BOOK: "/book_consultant/book",
   },

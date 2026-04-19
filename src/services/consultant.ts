@@ -6,7 +6,7 @@ export function useConsultantServices() {
   return useQuery({
     queryKey: ["consultant", "services"],
     queryFn: async () => {
-      const { data } = await api.get(ENDPOINTS.BOOK_CONSULTANT.SERVICES);
+      const { data } = await api.get(ENDPOINTS.BOOK_CONSULTANT.SERVICES.LIST);
       return data.data;
     },
     staleTime: 5 * 60 * 1000,
@@ -31,7 +31,7 @@ export function useConsultantDurations() {
   return useQuery({
     queryKey: ["consultant", "durations"],
     queryFn: async () => {
-      const { data } = await api.get(ENDPOINTS.BOOK_CONSULTANT.DURATIONS);
+      const { data } = await api.get(ENDPOINTS.BOOK_CONSULTANT.DURATIONS.LIST);
       return data.data;
     },
     staleTime: 5 * 60 * 1000,
