@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { useCartStore } from "@/stores/useCartStore";
 import { useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { usePrice } from "@/hooks/usePrice";
 import { ROUTES } from "@/config/routes";
 import { QuantityControl } from "@/components/store/shared/QuantityControl";
 import type { CartItem } from "@/types/cart";
@@ -45,10 +46,10 @@ export function CartDrawer({ className }: { className?: string }) {
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
+  const { format } = usePrice();
   const items = isLoggedIn ? (serverItems ?? []) : [];
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
   const itemCount = items.length;
-  const currencySymbol = items[0]?.currencySymbol || "₹";
 
   const showLoading = isLoggedIn && isLoading;
   const showEmpty = !showLoading && items.length === 0;
@@ -166,7 +167,7 @@ export function CartDrawer({ className }: { className?: string }) {
                 <div className="mb-4 flex items-center justify-between">
                   <span className="text-sm text-[var(--text-muted)]">Subtotal</span>
                   <span className="text-lg font-bold text-[var(--text-primary)]">
-                    {currencySymbol}{subtotal.toLocaleString()}
+                    {format(subtotal)}
                   </span>
                 </div>
                 <p className="mb-4 text-[11px] text-[var(--text-muted)]">Shipping & taxes calculated at checkout</p>
@@ -200,7 +201,6 @@ interface CartGroup {
   originalPrice: number;
   offerSummary: CartItem["offerSummary"];
   bulkApplied: boolean;
-  currencySymbol: string;
 }
 
 function groupCartItems(items: CartItem[]): CartGroup[] {
@@ -231,13 +231,12 @@ function groupCartItems(items: CartItem[]): CartGroup[] {
       originalPrice: groupItems.reduce((s, i) => s + i.pricePerItem * i.quantity, 0),
       offerSummary: groupItems[0].offerSummary,
       bulkApplied: groupItems.some((i) => i.bulkApplied),
-      currencySymbol: groupItems[0].currencySymbol || "₹",
     };
   });
 }
 
 function CartGroupRow({ group }: { group: CartGroup }) {
-  const { currencySymbol: sym } = group;
+  const { format } = usePrice();
   // Non-color attributes (shared across group)
   const sharedAttrs = Object.entries(
     (group.items[0].attributes || {}) as Record<string, string>
@@ -295,17 +294,17 @@ function CartGroupRow({ group }: { group: CartGroup }) {
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice !== group.totalPrice && (
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-[var(--text-muted)]">Original price</span>
-            <span className="text-xs text-[var(--text-muted)] line-through">{sym}{group.originalPrice.toLocaleString()}</span>
+            <span className="text-xs text-[var(--text-muted)] line-through">{format(group.originalPrice)}</span>
           </div>
         )}
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-[var(--text-primary)]">You pay</span>
-          <span className="text-sm font-bold text-[var(--text-primary)]">{sym}{group.totalPrice.toLocaleString()}</span>
+          <span className="text-sm font-bold text-[var(--text-primary)]">{format(group.totalPrice)}</span>
         </div>
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice > group.totalPrice && (
           <div className="flex items-center justify-end">
             <span className="text-[10px] font-semibold text-green-600">
-              You save {sym}{(group.originalPrice - group.totalPrice).toLocaleString()}
+              You save {format(group.originalPrice - group.totalPrice)}
             </span>
           </div>
         )}
@@ -317,11 +316,11 @@ function CartGroupRow({ group }: { group: CartGroup }) {
 function CartSubRow({ item }: { item: CartItem }) {
   const updateCart = useUpdateCartItem();
   const removeCart = useRemoveCartItem();
+  const { format } = usePrice();
   const isPending = updateCart.isPending || removeCart.isPending;
 
   const attrs = (item.attributes || {}) as Record<string, string>;
   const colorVal = Object.entries(attrs).find(([k]) => k.toLowerCase() === "color")?.[1];
-  const sym = item.currencySymbol || "₹";
 
   return (
     <div className={cn("flex gap-2.5 rounded-lg bg-[var(--bg-secondary)] p-2", isPending && "opacity-50 pointer-events-none")}>
@@ -346,9 +345,9 @@ function CartSubRow({ item }: { item: CartItem }) {
             <span className="text-xs font-medium text-[var(--text-primary)]">{colorVal}</span>
           )}
           {item.bulkApplied ? (
-            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{sym}{item.effectivePrice} each</span>
+            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{format(item.effectivePrice ?? item.pricePerItem)} each</span>
           ) : (
-            <span className="text-[11px] text-[var(--text-muted)]">{sym}{item.pricePerItem} each</span>
+            <span className="text-[11px] text-[var(--text-muted)]">{format(item.pricePerItem)} each</span>
           )}
         </div>
 
@@ -372,7 +371,7 @@ function CartSubRow({ item }: { item: CartItem }) {
             deleteLoading={removeCart.isPending}
             size="sm"
           />
-          <span className="text-xs font-bold text-[var(--text-primary)]">{sym}{item.totalPrice.toLocaleString()}</span>
+          <span className="text-xs font-bold text-[var(--text-primary)]">{format(item.totalPrice)}</span>
         </div>
       </div>
     </div>
