@@ -1,161 +1,384 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useAstrologerProfile, useUpdateAstrologerProfile } from "@/services/jyotish/profile";
+import {
+  useAstrologerProfile,
+  useCreateProfileEditRequest,
+  useMyProfileEditRequests,
+} from "@/services/jyotish/profile";
+import type { ProfileEditRequest } from "@/types/jyotish";
+
+interface Section<T> {
+  title: string;
+  description?: string;
+  initial: T;
+  render: (
+    state: T,
+    setState: React.Dispatch<React.SetStateAction<T>>,
+    inputCls: string,
+    labelCls: string,
+  ) => React.ReactNode;
+  buildPayload: (state: T) => Record<string, unknown>;
+}
+
+interface BasicInfoState { name: string; phone: string }
+interface AboutState { bio: string; experience: string }
+interface SpecLangState { specializations: string; languages: string }
+interface PricingState { pricePerMin: string }
+
+const inputCls =
+  "w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-input)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--border-focus)]/20";
+const labelCls = "mb-1.5 block text-sm font-medium text-[var(--text-primary)]";
+
+function StatusPill({ status }: { status: string }) {
+  const s = status.toUpperCase();
+  const cls =
+    s === "APPROVED"
+      ? "bg-[var(--accent-success)]/10 text-[var(--accent-success)]"
+      : s === "REJECTED"
+        ? "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]"
+        : "bg-[var(--jy-accent-gold)]/10 text-[var(--jy-accent-gold)]";
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {s}
+    </span>
+  );
+}
+
+function SectionCard<T>({
+  title,
+  description,
+  initial,
+  render,
+  buildPayload,
+  astrologerId,
+}: Section<T> & { astrologerId: string | number }) {
+  const [state, setState] = useState<T>(initial);
+  const [initialSnapshot, setInitialSnapshot] = useState<T>(initial);
+  const createRequest = useCreateProfileEditRequest();
+
+  useEffect(() => {
+    setState(initial);
+    setInitialSnapshot(initial);
+  }, [initial]);
+
+  const dirty = JSON.stringify(state) !== JSON.stringify(initialSnapshot);
+
+  const handleSubmit = () => {
+    if (!dirty) return;
+    const changes = buildPayload(state);
+    createRequest.mutate(
+      { astrologerId, changes },
+      {
+        onSuccess: () => {
+          setInitialSnapshot(state);
+        },
+      },
+    );
+  };
+
+  return (
+    <section className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-6">
+      <header className="mb-4">
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">{title}</h3>
+        {description && (
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>
+        )}
+      </header>
+
+      <div className="space-y-4">{render(state, setState, inputCls, labelCls)}</div>
+
+      <div className="mt-5 flex items-center justify-between">
+        <p className="text-xs text-[var(--text-tertiary)]">
+          {dirty ? "Unsaved changes" : "Up to date"}
+        </p>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!dirty || createRequest.isPending}
+          className="rounded-lg bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {createRequest.isPending ? "Submitting\u2026" : "Submit for review"}
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export function ProfileEdit() {
   const { user } = useAuthStore();
-  const userId = user?.id || user?._id || "";
+  const userId = user?.id ?? "";
   const { data: profile, isLoading } = useAstrologerProfile(userId);
-  const updateProfile = useUpdateAstrologerProfile();
+  const astrologerId = profile?.id ?? userId;
+  const { data: requests } = useMyProfileEditRequests(astrologerId);
 
-  const [form, setForm] = useState({
-    name: "",
-    bio: "",
-    experience: "",
-    pricePerMin: "",
-    specializations: "",
-    languages: "",
-    phone: "",
-  });
+  const basicInit: BasicInfoState = useMemo(
+    () => ({
+      name: profile?.name ?? "",
+      phone: profile?.phone ?? "",
+    }),
+    [profile?.name, profile?.phone],
+  );
 
-  useEffect(() => {
-    if (profile) {
-      setForm({
-        name: profile.name || "",
-        bio: profile.bio || "",
-        experience: String(profile.experience || ""),
-        pricePerMin: String(profile.pricePerMin || ""),
-        specializations: (profile.specializations ?? []).join(", "),
-        languages: (profile.languages ?? []).join(", "),
-        phone: profile.phone || "",
-      });
-    }
-  }, [profile]);
+  const aboutInit: AboutState = useMemo(
+    () => ({
+      bio: profile?.bio ?? "",
+      experience: String(profile?.experience ?? ""),
+    }),
+    [profile?.bio, profile?.experience],
+  );
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateProfile.mutate({
-      id: userId,
-      name: form.name,
-      bio: form.bio,
-      experience: Number(form.experience),
-      pricePerMin: Number(form.pricePerMin),
-      specializations: form.specializations
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-      languages: form.languages
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-      phone: form.phone,
-    });
-  };
+  const specLangInit: SpecLangState = useMemo(
+    () => ({
+      specializations: (profile?.specializations ?? []).join(", "),
+      languages: (profile?.languages ?? []).join(", "),
+    }),
+    [profile?.specializations, profile?.languages],
+  );
+
+  const pricingInit: PricingState = useMemo(
+    () => ({
+      pricePerMin: String(profile?.pricePerMin ?? profile?.pricePerMinute ?? ""),
+    }),
+    [profile?.pricePerMin, profile?.pricePerMinute],
+  );
+
+  const freeInit = useMemo(
+    () => ({
+      freeOfferActive: Boolean(profile?.freeOfferActive),
+      freeOfferMessage: profile?.freeOfferMessage ?? "",
+      freeSessionsRemaining: String(profile?.freeSessionsRemaining ?? ""),
+    }),
+    [profile?.freeOfferActive, profile?.freeOfferMessage, profile?.freeSessionsRemaining],
+  );
 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-12 rounded-lg shimmer" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-40 rounded-xl shimmer" />
         ))}
       </div>
     );
   }
 
-  const inputCls =
-    "w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-input)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--border-focus)]/20";
-  const labelCls = "mb-1.5 block text-sm font-medium text-[var(--text-primary)]";
+  if (!profile) {
+    return (
+      <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] py-12 text-center">
+        <p className="text-sm text-[var(--text-muted)]">Profile not found.</p>
+      </div>
+    );
+  }
+
+  const pendingList: ProfileEditRequest[] = (requests ?? []).slice(0, 8);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-6">
-      <div>
-        <label className={labelCls}>Full Name</label>
-        <input
-          type="text"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className={inputCls}
-          required
-        />
-      </div>
-
-      <div>
-        <label className={labelCls}>Bio</label>
-        <textarea
-          value={form.bio}
-          onChange={(e) => setForm({ ...form, bio: e.target.value })}
-          rows={4}
-          className={`${inputCls} resize-y`}
-          placeholder="Tell clients about yourself..."
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelCls}>Experience (years)</label>
-          <input
-            type="number"
-            value={form.experience}
-            onChange={(e) => setForm({ ...form, experience: e.target.value })}
-            className={inputCls}
-            min={0}
-          />
+    <div className="space-y-5">
+      {pendingList.length > 0 && (
+        <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            My edit requests
+          </h3>
+          <ul className="space-y-2 text-sm">
+            {pendingList.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center justify-between rounded-lg bg-[var(--bg-secondary)] px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-[var(--text-primary)]">
+                    {Object.keys(r.changes ?? {}).join(", ") || "Update"}
+                  </div>
+                  <div className="text-xs text-[var(--text-tertiary)]">
+                    {r.createdAt
+                      ? new Date(r.createdAt).toLocaleDateString()
+                      : ""}
+                    {r.reviewNote ? ` \u00b7 ${r.reviewNote}` : ""}
+                  </div>
+                </div>
+                <StatusPill status={String(r.status ?? "PENDING")} />
+              </li>
+            ))}
+          </ul>
         </div>
-        <div>
-          <label className={labelCls}>Price per minute (&#8377;)</label>
-          <input
-            type="number"
-            value={form.pricePerMin}
-            onChange={(e) => setForm({ ...form, pricePerMin: e.target.value })}
-            className={inputCls}
-            min={0}
-          />
-        </div>
-      </div>
+      )}
 
-      <div>
-        <label className={labelCls}>Specializations (comma-separated)</label>
-        <input
-          type="text"
-          value={form.specializations}
-          onChange={(e) => setForm({ ...form, specializations: e.target.value })}
-          className={inputCls}
-          placeholder="Vedic Astrology, Numerology, Tarot"
-        />
-      </div>
+      <SectionCard<BasicInfoState>
+        astrologerId={astrologerId}
+        title="Basic Info"
+        description="Your public name and contact phone."
+        initial={basicInit}
+        buildPayload={(s) => ({ name: s.name, phone: s.phone })}
+        render={(s, set, i, l) => (
+          <>
+            <div>
+              <label className={l}>Full Name</label>
+              <input
+                type="text"
+                value={s.name}
+                onChange={(e) => set({ ...s, name: e.target.value })}
+                className={i}
+                required
+              />
+            </div>
+            <div>
+              <label className={l}>Phone</label>
+              <input
+                type="tel"
+                value={s.phone}
+                onChange={(e) => set({ ...s, phone: e.target.value })}
+                className={i}
+                placeholder="+91 98765 43210"
+              />
+            </div>
+          </>
+        )}
+      />
 
-      <div>
-        <label className={labelCls}>Languages (comma-separated)</label>
-        <input
-          type="text"
-          value={form.languages}
-          onChange={(e) => setForm({ ...form, languages: e.target.value })}
-          className={inputCls}
-          placeholder="Hindi, English, Telugu"
-        />
-      </div>
+      <SectionCard<AboutState>
+        astrologerId={astrologerId}
+        title="About"
+        description="Your bio and years of experience."
+        initial={aboutInit}
+        buildPayload={(s) => ({
+          bio: s.bio,
+          experience: Number(s.experience) || 0,
+        })}
+        render={(s, set, i, l) => (
+          <>
+            <div>
+              <label className={l}>Bio</label>
+              <textarea
+                value={s.bio}
+                onChange={(e) => set({ ...s, bio: e.target.value })}
+                rows={4}
+                className={`${i} resize-y`}
+                placeholder="Tell clients about yourself\u2026"
+              />
+            </div>
+            <div>
+              <label className={l}>Experience (years)</label>
+              <input
+                type="number"
+                min={0}
+                value={s.experience}
+                onChange={(e) => set({ ...s, experience: e.target.value })}
+                className={i}
+              />
+            </div>
+          </>
+        )}
+      />
 
-      <div>
-        <label className={labelCls}>Phone</label>
-        <input
-          type="tel"
-          value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          className={inputCls}
-          placeholder="+91 98765 43210"
-        />
-      </div>
+      <SectionCard<SpecLangState>
+        astrologerId={astrologerId}
+        title="Specializations & Languages"
+        description="Comma-separated lists."
+        initial={specLangInit}
+        buildPayload={(s) => ({
+          specializations: s.specializations
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean),
+          languages: s.languages
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean),
+        })}
+        render={(s, set, i, l) => (
+          <>
+            <div>
+              <label className={l}>Specializations</label>
+              <input
+                type="text"
+                value={s.specializations}
+                onChange={(e) => set({ ...s, specializations: e.target.value })}
+                className={i}
+                placeholder="Vedic Astrology, Numerology, Tarot"
+              />
+            </div>
+            <div>
+              <label className={l}>Languages</label>
+              <input
+                type="text"
+                value={s.languages}
+                onChange={(e) => set({ ...s, languages: e.target.value })}
+                className={i}
+                placeholder="Hindi, English, Telugu"
+              />
+            </div>
+          </>
+        )}
+      />
 
-      <button
-        type="submit"
-        disabled={updateProfile.isPending}
-        className="w-full rounded-lg bg-[var(--accent-primary)] py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
-        {updateProfile.isPending ? "Saving..." : "Save Changes"}
-      </button>
-    </form>
+      <SectionCard<PricingState>
+        astrologerId={astrologerId}
+        title="Pricing"
+        description="Your per-minute rate. Subject to admin approval."
+        initial={pricingInit}
+        buildPayload={(s) => ({
+          pricePerMin: Number(s.pricePerMin) || 0,
+          pricePerMinute: Number(s.pricePerMin) || 0,
+        })}
+        render={(s, set, i, l) => (
+          <div>
+            <label className={l}>Price per minute (\u20b9)</label>
+            <input
+              type="number"
+              min={0}
+              value={s.pricePerMin}
+              onChange={(e) => set({ ...s, pricePerMin: e.target.value })}
+              className={i}
+            />
+          </div>
+        )}
+      />
+
+      <SectionCard<{ freeOfferActive: boolean; freeOfferMessage: string; freeSessionsRemaining: string }>
+        astrologerId={astrologerId}
+        title="Free Consultation"
+        description="Offer a limited number of free sessions. Subject to admin approval. Admin's commission still applies per session."
+        initial={freeInit}
+        buildPayload={(s) => ({
+          freeOfferActive: s.freeOfferActive,
+          freeOfferMessage: s.freeOfferMessage,
+          freeSessionsRemaining: Number(s.freeSessionsRemaining) || 0,
+        })}
+        render={(s, set, i, l) => (
+          <>
+            <label className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={s.freeOfferActive}
+                onChange={(e) => set({ ...s, freeOfferActive: e.target.checked })}
+              />
+              Offer free consultations
+            </label>
+            <div>
+              <label className={l}>Message shown to customers</label>
+              <input
+                type="text"
+                value={s.freeOfferMessage}
+                onChange={(e) => set({ ...s, freeOfferMessage: e.target.value })}
+                className={i}
+                placeholder="First session free for new users"
+              />
+            </div>
+            <div>
+              <label className={l}>Sessions remaining (0 = unlimited)</label>
+              <input
+                type="number"
+                min={0}
+                value={s.freeSessionsRemaining}
+                onChange={(e) => set({ ...s, freeSessionsRemaining: e.target.value })}
+                className={i}
+              />
+            </div>
+          </>
+        )}
+      />
+    </div>
   );
 }
 

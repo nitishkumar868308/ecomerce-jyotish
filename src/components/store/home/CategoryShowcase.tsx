@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useCategories } from "@/services/categories";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ROUTES } from "@/config/routes";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -80,7 +81,7 @@ export function CategoryShowcase() {
                   >
                     {category.image ? (
                       <Image
-                        src={category.image}
+                        src={resolveAssetUrl(category.image)}
                         alt={category.name}
                         fill
                         className="object-cover transition-transform duration-500 group-hover:scale-110"

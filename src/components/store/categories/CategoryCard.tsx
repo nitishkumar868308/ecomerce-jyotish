@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { ROUTES } from "@/config/routes";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import type { Category } from "@/types/category";
 
 interface CategoryCardProps {
@@ -30,7 +31,7 @@ export function CategoryCard({ category, className }: CategoryCardProps) {
           <div className="relative aspect-[4/3] overflow-hidden bg-[var(--bg-secondary)]">
             {category.image ? (
               <Image
-                src={category.image}
+                src={resolveAssetUrl(category.image)}
                 alt={category.name}
                 fill
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

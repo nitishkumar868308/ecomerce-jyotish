@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { useCartStore } from "@/stores/useCartStore";
 import { useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { usePrice } from "@/hooks/usePrice";
 import { ROUTES } from "@/config/routes";
 import { QuantityControl } from "@/components/store/shared/QuantityControl";
 import type { CartItem } from "@/types/cart";
@@ -45,17 +46,35 @@ export function CartDrawer({ className }: { className?: string }) {
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  const items = isLoggedIn ? (serverItems ?? []) : [];
+  const { format } = usePrice();
+  const allItems = isLoggedIn ? (serverItems ?? []) : [];
+
+  // Filter items by the active tab so users don't see wizard items in the
+  // QuickGo bucket (and vice versa). Legacy items with no platform default
+  // to the wizard bucket — wizard is the established product surface.
+  const itemsForTab = (tab: StorefrontTab) =>
+    allItems.filter((item) => {
+      const p = String(item.purchasePlatform ?? "").toLowerCase();
+      if (tab === "quickgo") return p === "quickgo" || p === "hecate-quickgo";
+      return p === "" || p === "wizard" || p === "website";
+    });
+
+  const items = itemsForTab(activeTab);
+  const wizardCount = itemsForTab("wizard").length;
+  const quickgoCount = itemsForTab("quickgo").length;
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
   const itemCount = items.length;
-  const currencySymbol = items[0]?.currencySymbol || "₹";
 
   const showLoading = isLoggedIn && isLoading;
   const showEmpty = !showLoading && items.length === 0;
   const showItems = !showLoading && items.length > 0;
 
+  // Carry the originating tab forward so checkout picks up the same platform
+  // context (see item 26 in the brief).
   const checkoutRoute =
-    activeTab === "quickgo" ? ROUTES.QUICKGO.CHECKOUT : ROUTES.CHECKOUT;
+    activeTab === "quickgo"
+      ? `${ROUTES.QUICKGO.CHECKOUT}?platform=quickgo`
+      : `${ROUTES.CHECKOUT}?platform=wizard`;
 
   return (
     <AnimatePresence>
@@ -101,10 +120,40 @@ export function CartDrawer({ className }: { className?: string }) {
                 </button>
               </div>
 
-              {/* Tabs */}
+              {/* Tabs — order is context-aware: the tab for the surface the
+                  user opened the drawer on comes first. */}
               <div className="flex gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
-                <TabBtn active={activeTab === "wizard"} onClick={() => setActiveTab("wizard")} icon={<ShoppingCart className="h-3.5 w-3.5" />} label="Wizard Mall" />
-                <TabBtn active={activeTab === "quickgo"} onClick={() => setActiveTab("quickgo")} icon={<Zap className="h-3.5 w-3.5" />} label="QuickGo" />
+                {defaultTab === "quickgo" ? (
+                  <>
+                    <TabBtn
+                      active={activeTab === "quickgo"}
+                      onClick={() => setActiveTab("quickgo")}
+                      icon={<Zap className="h-3.5 w-3.5" />}
+                      label={`QuickGo${quickgoCount ? ` (${quickgoCount})` : ""}`}
+                    />
+                    <TabBtn
+                      active={activeTab === "wizard"}
+                      onClick={() => setActiveTab("wizard")}
+                      icon={<ShoppingCart className="h-3.5 w-3.5" />}
+                      label={`Wizard Mall${wizardCount ? ` (${wizardCount})` : ""}`}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <TabBtn
+                      active={activeTab === "wizard"}
+                      onClick={() => setActiveTab("wizard")}
+                      icon={<ShoppingCart className="h-3.5 w-3.5" />}
+                      label={`Wizard Mall${wizardCount ? ` (${wizardCount})` : ""}`}
+                    />
+                    <TabBtn
+                      active={activeTab === "quickgo"}
+                      onClick={() => setActiveTab("quickgo")}
+                      icon={<Zap className="h-3.5 w-3.5" />}
+                      label={`QuickGo${quickgoCount ? ` (${quickgoCount})` : ""}`}
+                    />
+                  </>
+                )}
               </div>
             </div>
 
@@ -166,7 +215,7 @@ export function CartDrawer({ className }: { className?: string }) {
                 <div className="mb-4 flex items-center justify-between">
                   <span className="text-sm text-[var(--text-muted)]">Subtotal</span>
                   <span className="text-lg font-bold text-[var(--text-primary)]">
-                    {currencySymbol}{subtotal.toLocaleString()}
+                    {format(subtotal)}
                   </span>
                 </div>
                 <p className="mb-4 text-[11px] text-[var(--text-muted)]">Shipping & taxes calculated at checkout</p>
@@ -200,7 +249,6 @@ interface CartGroup {
   originalPrice: number;
   offerSummary: CartItem["offerSummary"];
   bulkApplied: boolean;
-  currencySymbol: string;
 }
 
 function groupCartItems(items: CartItem[]): CartGroup[] {
@@ -231,13 +279,12 @@ function groupCartItems(items: CartItem[]): CartGroup[] {
       originalPrice: groupItems.reduce((s, i) => s + i.pricePerItem * i.quantity, 0),
       offerSummary: groupItems[0].offerSummary,
       bulkApplied: groupItems.some((i) => i.bulkApplied),
-      currencySymbol: groupItems[0].currencySymbol || "₹",
     };
   });
 }
 
 function CartGroupRow({ group }: { group: CartGroup }) {
-  const { currencySymbol: sym } = group;
+  const { format } = usePrice();
   // Non-color attributes (shared across group)
   const sharedAttrs = Object.entries(
     (group.items[0].attributes || {}) as Record<string, string>
@@ -295,17 +342,17 @@ function CartGroupRow({ group }: { group: CartGroup }) {
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice !== group.totalPrice && (
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-[var(--text-muted)]">Original price</span>
-            <span className="text-xs text-[var(--text-muted)] line-through">{sym}{group.originalPrice.toLocaleString()}</span>
+            <span className="text-xs text-[var(--text-muted)] line-through">{format(group.originalPrice)}</span>
           </div>
         )}
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-[var(--text-primary)]">You pay</span>
-          <span className="text-sm font-bold text-[var(--text-primary)]">{sym}{group.totalPrice.toLocaleString()}</span>
+          <span className="text-sm font-bold text-[var(--text-primary)]">{format(group.totalPrice)}</span>
         </div>
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice > group.totalPrice && (
           <div className="flex items-center justify-end">
             <span className="text-[10px] font-semibold text-green-600">
-              You save {sym}{(group.originalPrice - group.totalPrice).toLocaleString()}
+              You save {format(group.originalPrice - group.totalPrice)}
             </span>
           </div>
         )}
@@ -317,11 +364,11 @@ function CartGroupRow({ group }: { group: CartGroup }) {
 function CartSubRow({ item }: { item: CartItem }) {
   const updateCart = useUpdateCartItem();
   const removeCart = useRemoveCartItem();
+  const { format } = usePrice();
   const isPending = updateCart.isPending || removeCart.isPending;
 
   const attrs = (item.attributes || {}) as Record<string, string>;
   const colorVal = Object.entries(attrs).find(([k]) => k.toLowerCase() === "color")?.[1];
-  const sym = item.currencySymbol || "₹";
 
   return (
     <div className={cn("flex gap-2.5 rounded-lg bg-[var(--bg-secondary)] p-2", isPending && "opacity-50 pointer-events-none")}>
@@ -346,9 +393,9 @@ function CartSubRow({ item }: { item: CartItem }) {
             <span className="text-xs font-medium text-[var(--text-primary)]">{colorVal}</span>
           )}
           {item.bulkApplied ? (
-            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{sym}{item.effectivePrice} each</span>
+            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{format(item.effectivePrice ?? item.pricePerItem)} each</span>
           ) : (
-            <span className="text-[11px] text-[var(--text-muted)]">{sym}{item.pricePerItem} each</span>
+            <span className="text-[11px] text-[var(--text-muted)]">{format(item.pricePerItem)} each</span>
           )}
         </div>
 
@@ -372,7 +419,7 @@ function CartSubRow({ item }: { item: CartItem }) {
             deleteLoading={removeCart.isPending}
             size="sm"
           />
-          <span className="text-xs font-bold text-[var(--text-primary)]">{sym}{item.totalPrice.toLocaleString()}</span>
+          <span className="text-xs font-bold text-[var(--text-primary)]">{format(item.totalPrice)}</span>
         </div>
       </div>
     </div>

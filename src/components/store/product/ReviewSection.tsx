@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { useReviews, useCreateReview } from "@/services/reviews";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useHasDeliveredProduct } from "@/hooks/useHasDeliveredProduct";
 import type { Review } from "@/types/review";
 
 interface ReviewSectionProps {
@@ -190,6 +191,9 @@ export function ReviewSection({ productId, className }: ReviewSectionProps) {
   const [title, setTitle] = useState("");
   const [comment, setComment] = useState("");
   const { isLoggedIn } = useAuthStore();
+  const { hasDelivered, isLoading: checkingOrders } = useHasDeliveredProduct(
+    isLoggedIn ? productId : null
+  );
 
   const { data, isLoading } = useReviews({ productId });
   const createReview = useCreateReview();
@@ -242,14 +246,24 @@ export function ReviewSection({ productId, className }: ReviewSectionProps) {
       <RatingBreakdown reviews={reviews} />
 
       {/* Write Review Button */}
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end">
         <Button
           onClick={() => setShowForm(true)}
           leftIcon={<MessageSquarePlus className="h-4 w-4" />}
-          disabled={!isLoggedIn}
+          disabled={!isLoggedIn || checkingOrders || !hasDelivered}
         >
-          {isLoggedIn ? "Write a Review" : "Login to Review"}
+          {checkingOrders ? "Checking…" : "Write a Review"}
         </Button>
+        {isLoggedIn && !checkingOrders && !hasDelivered && (
+          <p className="mt-2 text-xs text-[var(--text-tertiary)]">
+            Order karne aur delivery hone ke baad hi rating and review de sakte ho. Lekin aap doosre reviews yahan padh sakte ho.
+          </p>
+        )}
+        {!isLoggedIn && (
+          <p className="mt-2 text-xs text-[var(--text-tertiary)]">
+            Login karo taaki review likh sako — reviews padhna sabke liye open hai.
+          </p>
+        )}
       </div>
 
       {/* Reviews List */}

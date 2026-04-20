@@ -25,11 +25,62 @@ import { useCart } from "@/services/cart";
 import { useCategories, useSubcategories } from "@/services/categories";
 import { useHeaders } from "@/services/banners";
 import { ROUTES } from "@/config/routes";
+import { resolveMenuHref } from "@/lib/menuResolver";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import type { Category, Subcategory } from "@/types/category";
+
+type SiteVariant = "wizard" | "quickgo" | "jyotish";
+
+function getSiteVariant(pathname: string): SiteVariant {
+  if (pathname.startsWith("/hecate-quickgo")) return "quickgo";
+  if (pathname.startsWith("/jyotish")) return "jyotish";
+  return "wizard";
+}
+
+const HEADER_CONFIG: Record<SiteVariant, {
+  logoSrc: string;
+  logoAlt: string;
+  homeHref: string;
+  categoriesHref: string;
+  categoryHref: (name: string, slug?: string) => string;
+  subcategoryHref: (catName: string, subName: string, catSlug?: string, subSlug?: string) => string;
+  searchPath: string;
+}> = {
+  wizard: {
+    logoSrc: "/image/logohwm.png",
+    logoAlt: "Hecate Wizard Mall",
+    homeHref: ROUTES.HOME,
+    categoriesHref: ROUTES.CATEGORIES,
+    categoryHref: (name) => ROUTES.CATEGORY(name),
+    subcategoryHref: (catName, subName) => ROUTES.SUBCATEGORY(catName, subName),
+    searchPath: "/categories",
+  },
+  quickgo: {
+    logoSrc: "/image/hecate quickgo logo transpreant new.png",
+    logoAlt: "Hecate QuickGo",
+    homeHref: ROUTES.QUICKGO.HOME,
+    categoriesHref: ROUTES.QUICKGO.CATEGORIES,
+    categoryHref: (name, slug) => `${ROUTES.QUICKGO.CATEGORIES}?cat=${encodeURIComponent(slug || name)}`,
+    subcategoryHref: (catName, subName, catSlug, subSlug) =>
+      `${ROUTES.QUICKGO.CATEGORIES}?cat=${encodeURIComponent(catSlug || catName)}&sub=${encodeURIComponent(subSlug || subName)}`,
+    searchPath: ROUTES.QUICKGO.CATEGORIES,
+  },
+  jyotish: {
+    logoSrc: "/image/logohwm.png",
+    logoAlt: "Hecate Wizard Mall",
+    homeHref: ROUTES.HOME,
+    categoriesHref: ROUTES.CATEGORIES,
+    categoryHref: (name) => ROUTES.CATEGORY(name),
+    subcategoryHref: (catName, subName) => ROUTES.SUBCATEGORY(catName, subName),
+    searchPath: "/categories",
+  },
+};
 
 export function Header({ className }: { className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const variant = getSiteVariant(pathname);
+  const headerCfg = HEADER_CONFIG[variant];
   const { user, isLoggedIn } = useAuthStore();
   const toggleCart = useCartStore((s) => s.toggleCart);
   const { data: cartItems } = useCart();
@@ -75,34 +126,39 @@ export function Header({ className }: { className?: string }) {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/categories?search=${encodeURIComponent(searchQuery.trim())}`);
+      router.push(`${headerCfg.searchPath}?search=${encodeURIComponent(searchQuery.trim())}`);
       setSearchOpen(false);
       setSearchQuery("");
       setMobileMenuOpen(false);
     }
   };
 
-  // Build nav links from API header menu items, filter out special items
-  const NAV_LINKS = headerMenuItems && headerMenuItems.length > 0
-    ? headerMenuItems
-        .filter((item) => {
-          if (!item.active) return false;
-          const lower = item.name.toLowerCase();
-          return lower !== "enter the mall" && lower !== "hecate quickgo" && lower !== "jyotish";
-        })
-        .map((item) => {
-          const lower = item.name.toLowerCase();
-          let href = `/${lower.replace(/\s+/g, "-")}`;
-          if (lower === "home") href = "/";
-          else if (lower === "about") href = "/about";
-          else if (lower === "contact") href = "/contact";
-          return { label: item.name, href };
-        })
-    : [
-        { label: "Home", href: "/" },
-        { label: "About", href: "/about" },
-        { label: "Contact", href: "/contact" },
-      ];
+  // Build nav links from API header menu items. "Enter the Mall" is rendered
+  // separately as the branded mega-menu trigger (with Store icon), so we drop
+  // it from the API-fed list here to avoid a duplicate label next to it.
+  // Items render in backend order (createdAt asc = earliest first).
+  const activeMenuItems = (headerMenuItems ?? []).filter((item) => {
+    if (!item.active) return false;
+    const lower = item.name.toLowerCase();
+    return lower !== "enter the mall";
+  });
+
+  const rawNavItems =
+    activeMenuItems.length > 0
+      ? activeMenuItems.map((item) => ({ label: item.name }))
+      : [
+          { label: "Home" },
+          { label: "About" },
+          { label: "Contact" },
+        ];
+
+  // Label → href via the shared resolver. Handles synonyms ("Contact Us" →
+  // /contact), policies ("Shipping Policy" → /shipping-and-return-policy) and
+  // falls back to a kebab-cased slug for unknown items.
+  const NAV_LINKS = rawNavItems.map((item) => ({
+    label: item.label,
+    href: resolveMenuHref(item.label, variant),
+  }));
 
   return (
     <header
@@ -128,14 +184,14 @@ export function Header({ className }: { className?: string }) {
             )}
           </button>
 
-          {/* Logo - Bigger */}
+          {/* Logo - Bigger (variant-aware) */}
           <Link
-            href={ROUTES.HOME}
+            href={headerCfg.homeHref}
             className="flex items-center gap-2 shrink-0"
           >
             <Image
-              src="/image/logohwm.png"
-              alt="Hecate Wizard Mall"
+              src={headerCfg.logoSrc}
+              alt={headerCfg.logoAlt}
               width={220}
               height={64}
               className="h-12 w-auto sm:h-14 lg:h-16 object-contain"
@@ -219,8 +275,11 @@ export function Header({ className }: { className?: string }) {
                   <ChevronDown className="hidden sm:block h-3.5 w-3.5 text-[var(--text-muted)]" />
                 </button>
 
-                {/* Hover Dropdown */}
-                <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 absolute right-0 top-full mt-1 w-48 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] shadow-[var(--shadow-lg)] transition-all duration-200 z-50">
+                {/* Hover Dropdown — pt-2 provides a hoverable bridge so the
+                    dropdown does not close while the cursor traverses the gap
+                    between the trigger and panel. */}
+                <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 absolute right-0 top-full pt-2 w-48 transition-all duration-200 z-50">
+                  <div className="overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] shadow-[var(--shadow-lg)]">
                   <div className="px-4 py-3 border-b border-[var(--border-primary)]">
                     <p className="text-sm font-medium text-[var(--text-primary)] truncate">{user.name}</p>
                     <p className="text-xs text-[var(--text-muted)] truncate">{user.email}</p>
@@ -245,6 +304,7 @@ export function Header({ className }: { className?: string }) {
                       <LogOut className="h-4 w-4" />
                       Logout
                     </button>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -275,7 +335,7 @@ export function Header({ className }: { className?: string }) {
             <button
               type="button"
               onClick={() => {
-                router.push(ROUTES.CATEGORIES);
+                router.push(headerCfg.categoriesHref);
                 setMegaMenuOpen(false);
               }}
               className={cn(
@@ -298,13 +358,13 @@ export function Header({ className }: { className?: string }) {
             {/* Mega Dropdown */}
             {megaMenuOpen && (
               <div
-                className="absolute left-0 top-full z-50 w-[800px] rounded-b-xl border border-t-0 border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-[var(--shadow-xl)] animate-fadeIn"
+                className="absolute left-0 top-full z-50 w-[min(820px,calc(100vw-2rem))] rounded-b-xl border border-t-0 border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-[var(--shadow-xl)] animate-fadeIn"
                 onMouseEnter={handleMegaMenuEnter}
                 onMouseLeave={handleMegaMenuLeave}
               >
-                <div className="flex min-h-[400px]">
-                  {/* Left: Categories List */}
-                  <div className="w-[240px] border-r border-[var(--border-primary)] bg-[var(--bg-secondary)] py-2">
+                <div className="flex min-h-[380px] max-h-[min(520px,75vh)]">
+                  {/* Left: Categories List (unchanged — works well) */}
+                  <div className="w-[240px] shrink-0 overflow-y-auto border-r border-[var(--border-primary)] bg-[var(--bg-secondary)] py-2">
                     <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                       Categories
                     </p>
@@ -313,7 +373,7 @@ export function Header({ className }: { className?: string }) {
                         key={cat.id}
                         onMouseEnter={() => setActiveCategory(cat)}
                         onClick={() => {
-                          router.push(ROUTES.CATEGORY(cat.name));
+                          router.push(headerCfg.categoryHref(cat.name, (cat as any).slug));
                           setMegaMenuOpen(false);
                         }}
                         className={cn(
@@ -323,25 +383,25 @@ export function Header({ className }: { className?: string }) {
                             : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
                         )}
                       >
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-2 min-w-0">
                           {cat.image && (
                             <Image
-                              src={cat.image}
+                              src={resolveAssetUrl(cat.image)}
                               alt={cat.name}
                               width={24}
                               height={24}
-                              className="rounded-md object-cover"
+                              className="rounded-md object-cover shrink-0"
                             />
                           )}
-                          {cat.name}
+                          <span className="truncate">{cat.name}</span>
                         </span>
-                        <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+                        <ChevronRight className="h-3.5 w-3.5 opacity-50 shrink-0" />
                       </button>
                     ))}
 
                     <div className="mx-4 my-2 border-t border-[var(--border-primary)]" />
                     <Link
-                      href={ROUTES.CATEGORIES}
+                      href={headerCfg.categoriesHref}
                       onClick={() => setMegaMenuOpen(false)}
                       className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--accent-primary)] hover:underline"
                     >
@@ -350,74 +410,68 @@ export function Header({ className }: { className?: string }) {
                     </Link>
                   </div>
 
-                  {/* Right: Subcategories + Featured Image */}
-                  <div className="flex-1 p-6">
+                  {/* Right: Subcategories only — no category hero image.
+                      Responsive grid adapts to panel width. */}
+                  <div className="flex flex-1 flex-col overflow-hidden">
                     {activeCategory && (
                       <>
-                        <div className="mb-4 flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+                        <div className="flex items-center justify-between gap-4 border-b border-[var(--border-primary)] px-5 py-3">
+                          <h3 className="truncate text-base font-semibold text-[var(--text-primary)]">
                             {activeCategory.name}
                           </h3>
                           <Link
-                            href={ROUTES.CATEGORY(activeCategory.name)}
+                            href={headerCfg.categoryHref(activeCategory.name, (activeCategory as any).slug)}
                             onClick={() => setMegaMenuOpen(false)}
-                            className="text-sm font-medium text-[var(--accent-primary)] hover:underline"
+                            className="shrink-0 text-xs font-medium text-[var(--accent-primary)] hover:underline"
                           >
                             View All →
                           </Link>
                         </div>
 
-                        {/* Subcategories Grid */}
-                        <div className="grid grid-cols-3 gap-3 mb-4">
-                          {subcategories?.map((sub: Subcategory) => (
-                            <Link
-                              key={sub.id}
-                              href={ROUTES.SUBCATEGORY(
-                                activeCategory.name,
-                                sub.name
-                              )}
-                              onClick={() => setMegaMenuOpen(false)}
-                              className="group flex items-center gap-2 rounded-lg border border-[var(--border-primary)] p-2.5 transition-all hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary-light)] hover:shadow-sm"
-                            >
-                              {sub.image && (
-                                <Image
-                                  src={sub.image}
-                                  alt={sub.name}
-                                  width={36}
-                                  height={36}
-                                  className="rounded-md object-cover"
-                                />
-                              )}
-                              <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--accent-primary)] font-medium truncate">
-                                {sub.name}
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-
-                        {/* Featured Category Image */}
-                        {activeCategory.image && (
-                          <Link
-                            href={ROUTES.CATEGORY(activeCategory.name)}
-                            onClick={() => setMegaMenuOpen(false)}
-                            className="block overflow-hidden rounded-xl"
-                          >
-                            <div className="relative h-[140px] w-full overflow-hidden rounded-xl">
-                              <Image
-                                src={activeCategory.image}
-                                alt={activeCategory.name}
-                                fill
-                                className="object-cover transition-transform duration-500 hover:scale-105"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                              <div className="absolute bottom-3 left-4">
-                                <p className="text-white font-semibold text-sm">
-                                  Shop {activeCategory.name}
-                                </p>
-                              </div>
+                        <div className="flex-1 overflow-y-auto p-4">
+                          {subcategories && subcategories.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                              {subcategories.map((sub: Subcategory) => (
+                                <Link
+                                  key={sub.id}
+                                  href={headerCfg.subcategoryHref(
+                                    activeCategory.name,
+                                    sub.name,
+                                    (activeCategory as any).slug,
+                                    (sub as any).slug
+                                  )}
+                                  onClick={() => setMegaMenuOpen(false)}
+                                  className="group flex flex-col items-center gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] p-3 text-center transition-all hover:-translate-y-0.5 hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary-light)] hover:shadow-md"
+                                >
+                                  <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-[var(--bg-secondary)]">
+                                    {sub.image ? (
+                                      <Image
+                                        src={resolveAssetUrl(sub.image)}
+                                        alt={sub.name}
+                                        fill
+                                        sizes="(max-width:640px) 120px, 160px"
+                                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                      />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-[var(--text-faint)]">
+                                        <Store className="h-6 w-6" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="line-clamp-2 text-xs font-medium leading-tight text-[var(--text-secondary)] group-hover:text-[var(--accent-primary)]">
+                                    {sub.name}
+                                  </span>
+                                </Link>
+                              ))}
                             </div>
-                          </Link>
-                        )}
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <p className="text-sm text-[var(--text-muted)]">
+                                No subcategories yet.
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
@@ -427,13 +481,13 @@ export function Header({ className }: { className?: string }) {
           </div>
 
           {/* Dynamic Nav Links from API */}
-          {NAV_LINKS.map((item) => {
+          {NAV_LINKS.map((item, i) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <Link
-                key={item.href}
+                key={`${item.label}-${i}`}
                 href={item.href}
                 className={cn(
                   "px-4 py-3 text-sm font-medium transition-colors duration-200",
@@ -450,19 +504,35 @@ export function Header({ className }: { className?: string }) {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Hecate QuickGo with logo */}
-          <Link
-            href={ROUTES.QUICKGO.HOME}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors rounded-lg"
-          >
-            <Image
-              src="/image/hecate quickgo logo transpreant new.png"
-              alt="QuickGo"
-              width={240}
-              height={64}
-              className="h-14 w-auto object-contain"
-            />
-          </Link>
+          {/* Cross-site link: show opposite site's logo/link based on current variant */}
+          {variant !== "quickgo" && (
+            <Link
+              href={ROUTES.QUICKGO.HOME}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors rounded-lg"
+            >
+              <Image
+                src="/image/hecate quickgo logo transpreant new.png"
+                alt="QuickGo"
+                width={240}
+                height={64}
+                className="h-14 w-auto object-contain"
+              />
+            </Link>
+          )}
+          {variant === "quickgo" && (
+            <Link
+              href={ROUTES.HOME}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-[var(--bg-secondary)] transition-colors rounded-lg"
+            >
+              <Image
+                src="/image/logohwm.png"
+                alt="Hecate Wizard Mall"
+                width={220}
+                height={64}
+                className="h-12 w-auto object-contain"
+              />
+            </Link>
+          )}
 
           {/* Jyotish Link */}
           <Link
@@ -512,10 +582,10 @@ export function Header({ className }: { className?: string }) {
       >
         {/* Drawer Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-[var(--border-primary)]">
-          <Link href={ROUTES.HOME} onClick={() => setMobileMenuOpen(false)}>
+          <Link href={headerCfg.homeHref} onClick={() => setMobileMenuOpen(false)}>
             <Image
-              src="/image/logohwm.png"
-              alt="Hecate Wizard Mall"
+              src={headerCfg.logoSrc}
+              alt={headerCfg.logoAlt}
               width={160}
               height={48}
               className="h-10 w-auto object-contain"
@@ -536,12 +606,12 @@ export function Header({ className }: { className?: string }) {
             {/* Enter the Mall Section - Links to categories page */}
             <div className="px-4 py-2">
               <Link
-                href={ROUTES.CATEGORIES}
+                href={headerCfg.categoriesHref}
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--accent-primary)] hover:text-white transition-colors"
               >
                 <Store className="h-4 w-4" />
-                Enter the Mall
+                {variant === "quickgo" ? "Browse QuickGo" : "Enter the Mall"}
                 <ChevronRight className="h-3.5 w-3.5 ml-auto" />
               </Link>
 
@@ -550,13 +620,13 @@ export function Header({ className }: { className?: string }) {
                 {categories?.slice(0, 5).map((cat) => (
                   <Link
                     key={cat.id}
-                    href={ROUTES.CATEGORY(cat.name)}
+                    href={headerCfg.categoryHref(cat.name, (cat as any).slug)}
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors"
                   >
                     {cat.image && (
                       <Image
-                        src={cat.image}
+                        src={resolveAssetUrl(cat.image)}
                         alt={cat.name}
                         width={24}
                         height={24}
@@ -568,7 +638,7 @@ export function Header({ className }: { className?: string }) {
                 ))}
                 {categories && categories.length > 5 && (
                   <Link
-                    href={ROUTES.CATEGORIES}
+                    href={headerCfg.categoriesHref}
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[var(--accent-primary)] hover:underline"
                   >
@@ -582,13 +652,13 @@ export function Header({ className }: { className?: string }) {
 
             {/* Nav Links */}
             <div className="px-4 py-2">
-              {NAV_LINKS.map((item) => {
+              {NAV_LINKS.map((item, i) => {
                 const isActive =
                   pathname === item.href ||
                   (item.href !== "/" && pathname.startsWith(item.href));
                 return (
                   <Link
-                    key={item.href}
+                    key={`${item.label}-${i}`}
                     href={item.href}
                     onClick={() => setMobileMenuOpen(false)}
                     className={cn(
@@ -606,21 +676,38 @@ export function Header({ className }: { className?: string }) {
 
             <div className="mx-4 border-t border-[var(--border-primary)]" />
 
-            {/* QuickGo & Jyotish */}
+            {/* Cross-site links: show opposite site based on current variant */}
             <div className="px-4 py-2 space-y-1">
-              <Link
-                href={ROUTES.QUICKGO.HOME}
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
-              >
-                <Image
-                  src="/image/hecate quickgo logo transpreant new.png"
-                  alt="QuickGo"
-                  width={220}
-                  height={56}
-                  className="h-12 w-auto object-contain"
-                />
-              </Link>
+              {variant !== "quickgo" && (
+                <Link
+                  href={ROUTES.QUICKGO.HOME}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
+                >
+                  <Image
+                    src="/image/hecate quickgo logo transpreant new.png"
+                    alt="QuickGo"
+                    width={220}
+                    height={56}
+                    className="h-12 w-auto object-contain"
+                  />
+                </Link>
+              )}
+              {variant === "quickgo" && (
+                <Link
+                  href={ROUTES.HOME}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold hover:bg-[var(--bg-secondary)] transition-colors"
+                >
+                  <Image
+                    src="/image/logohwm.png"
+                    alt="Hecate Wizard Mall"
+                    width={200}
+                    height={56}
+                    className="h-10 w-auto object-contain"
+                  />
+                </Link>
+              )}
               <Link
                 href={ROUTES.JYOTISH.HOME}
                 onClick={() => setMobileMenuOpen(false)}

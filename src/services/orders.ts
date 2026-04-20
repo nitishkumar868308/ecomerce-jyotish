@@ -1,17 +1,39 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ENDPOINTS } from "@/lib/api";
 import type { Order, CreateOrderPayload } from "@/types/order";
-import type { ApiResponse, PaginatedResponse, PaginationParams } from "@/types/api";
+import type {
+  ApiResponse,
+  OrdersListResponse,
+  PaginatedResponse,
+  PaginationParams,
+} from "@/types/api";
+import { apiError, apiSuccess } from "@/lib/apiMessage";
 import toast from "react-hot-toast";
 
 export function useOrders(params?: PaginationParams) {
-  return useQuery({
+  return useQuery<PaginatedResponse<Order>>({
     queryKey: ["orders", params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Order>>(ENDPOINTS.ORDERS.LIST, {
-        params,
-      });
-      return data;
+      const { data } = await api.get<OrdersListResponse<Order> | PaginatedResponse<Order>>(
+        ENDPOINTS.ORDERS.LIST,
+        { params },
+      );
+      // Backend may return either nested ({data:{data,meta}}) or flat shape.
+      // Normalize so callers can rely on data.data (array) and data.totalPages.
+      const inner = (data as any)?.data;
+      const isNested = inner && !Array.isArray(inner) && Array.isArray(inner.data);
+      if (isNested) {
+        const meta = inner.meta ?? {};
+        return {
+          success: (data as any).success ?? true,
+          data: inner.data as Order[],
+          total: meta.total ?? inner.data.length,
+          page: meta.page ?? params?.page ?? 1,
+          limit: meta.limit ?? params?.limit ?? inner.data.length,
+          totalPages: meta.totalPages ?? 1,
+        };
+      }
+      return data as PaginatedResponse<Order>;
     },
   });
 }
@@ -34,14 +56,12 @@ export function useCreateOrder() {
       const { data } = await api.post(ENDPOINTS.ORDERS.CREATE, payload);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["cart"] });
-      toast.success("Order placed!");
+      toast.success(apiSuccess(data, "Order placed"));
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to place order");
-    },
+    onError: (error: any) => toast.error(apiError(error)),
   });
 }
 
@@ -52,13 +72,11 @@ export function useUpdateOrder() {
       const { data } = await api.put(ENDPOINTS.ORDERS.SINGLE(id), payload);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Order updated!");
+      toast.success(apiSuccess(data, "Order updated"));
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed");
-    },
+    onError: (error: any) => toast.error(apiError(error)),
   });
 }
 

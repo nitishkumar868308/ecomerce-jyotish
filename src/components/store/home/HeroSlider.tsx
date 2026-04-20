@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { useBanners } from "@/services/banners";
 import { useCountryStore } from "@/stores/useCountryStore";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
+import { resolveAssetUrl } from "@/lib/assetUrl";
+import { filterBannersForStorefront } from "@/lib/storefrontFilters";
 import Image from "next/image";
 import Link from "next/link";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -19,16 +21,14 @@ export function HeroSlider() {
   const { data: banners, isLoading } = useBanners();
   const { code: countryCode } = useCountryStore();
 
-  const activeBanners = useMemo(() => {
-    if (!banners) return [];
-    return banners.filter((b) => {
-      if (!b.active) return false;
-      if (b.countries && b.countries.length > 0) {
-        return b.countries.some((c) => c.countryCode === countryCode);
-      }
-      return true;
-    });
-  }, [banners, countryCode]);
+  const activeBanners = useMemo(
+    () =>
+      filterBannersForStorefront(banners, {
+        // Default falls back to the store's "IND" when nothing is picked yet.
+        country: countryCode || "IND",
+      }),
+    [banners, countryCode],
+  );
 
   if (isLoading) {
     return (
@@ -117,7 +117,7 @@ function SlideContent({
       {/* Image fills full width */}
       <div className="relative w-full">
         <Image
-          src={banner.image || "/image/placeholder.jpg"}
+          src={banner.image ? resolveAssetUrl(banner.image) : "/image/placeholder.jpg"}
           alt={banner.text || `Banner ${index + 1}`}
           width={1920}
           height={600}

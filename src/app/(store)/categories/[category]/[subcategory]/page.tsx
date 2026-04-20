@@ -11,6 +11,7 @@ import { Pagination } from "@/components/ui/Pagination";
 import { useProductsFast } from "@/services/products";
 import { useCategories } from "@/services/categories";
 import { useTags } from "@/services/tags";
+import { filterByPlatform } from "@/lib/products";
 import { ROUTES } from "@/config/routes";
 
 const ITEMS_PER_PAGE = 12;
@@ -58,7 +59,7 @@ export default function SubcategoryPage() {
     letter: filters.letter || undefined,
   });
 
-  const productList = productsData?.data?.products ?? [];
+  const productList = filterByPlatform(productsData?.data?.products, "wizard");
   const totalProducts = productsData?.data?.total ?? 0;
   const totalPages = productsData?.data?.totalPages ?? 0;
 

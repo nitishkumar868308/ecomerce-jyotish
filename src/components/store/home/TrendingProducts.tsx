@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useProductsFast } from "@/services/products";
+import { filterByPlatform } from "@/lib/products";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ROUTES } from "@/config/routes";
 import { ShoppingCart, Star, TrendingUp } from "lucide-react";
@@ -14,7 +15,7 @@ export default function TrendingProducts() {
     sortBy: "popular",
     sortOrder: "desc",
   });
-  const products = data?.data?.products || [];
+  const products = filterByPlatform(data?.data?.products, "wizard");
 
   return (
     <section className="py-8 sm:py-12 lg:py-16 bg-[var(--bg-secondary)]">

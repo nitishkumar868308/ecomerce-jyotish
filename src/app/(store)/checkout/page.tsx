@@ -13,6 +13,7 @@ import { useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
 import { useAddresses, useCreateAddress } from "@/services/address";
 import { useShippingByCountry } from "@/services/shipping";
 import { useCountryStore } from "@/stores/useCountryStore";
+import { usePrice } from "@/hooks/usePrice";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { api, ENDPOINTS } from "@/lib/api";
 import { ROUTES } from "@/config/routes";
@@ -35,8 +36,33 @@ const EMPTY_ADDRESS_FORM = {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { data: cartItems, isLoading: cartLoading } = useCart();
-  const { code: countryCode, symbol: currencySymbol } = useCountryStore();
+  const searchPlatform =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("platform")?.toLowerCase()
+      : undefined;
+  // The URL query drives the theme + which cart subset is rendered so the
+  // user checks out exactly what they saw in the drawer.
+  const originPlatform: "wizard" | "quickgo" =
+    searchPlatform === "quickgo" ? "quickgo" : "wizard";
+  const { data: cartItemsRaw, isLoading: cartLoading } = useCart();
+  const cartItems = (cartItemsRaw ?? []).filter((item) => {
+    const p = String(item.purchasePlatform ?? "").toLowerCase();
+    if (originPlatform === "quickgo")
+      return p === "quickgo" || p === "hecate-quickgo";
+    return p === "" || p === "wizard" || p === "website";
+  });
+  // Items checkable on/off; all selected by default.
+  const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
+  const toggleItemSelected = (id: string) => {
+    setDeselectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const { code: countryCode } = useCountryStore();
+  const { format } = usePrice();
   const { data: shippingOptions } = useShippingByCountry(countryCode);
   const { user } = useAuthStore();
   const { data: addresses, isLoading: addressesLoading } = useAddresses();
@@ -96,16 +122,29 @@ export default function CheckoutPage() {
   const [note, setNote] = useState("");
   const [donationAmount, setDonationAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"PayU" | "PayGlocal">(
-    countryCode === "IND" ? "PayU" : "PayGlocal"
+    countryCode === "IND" ? "PayU" : "PayGlocal",
   );
+  // The brief requires payment gateway selection to follow the BILLING
+  // address country, not the browsing country. India -> PayU, else PayGlocal.
+  // We re-derive inside an effect so a user who changes billing country
+  // doesn't get charged through the wrong rail.
+  useEffect(() => {
+    const billingCountry = (() => {
+      const userCountry = (user as any)?.country;
+      const addrCountry = (addresses ?? []).find((a) => a.isDefault)?.country;
+      return String(userCountry || addrCountry || "India");
+    })();
+    const isIndia =
+      /india/i.test(billingCountry) || billingCountry.toUpperCase() === "IND";
+    setPaymentMethod(isIndia ? "PayU" : "PayGlocal");
+  }, [user, addresses]);
   const [placing, setPlacing] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     promo: false, note: false, donate: false,
   });
 
-  const items = cartItems ?? [];
+  const items = (cartItems ?? []).filter((i) => !deselectedIds.has(i.id));
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
-  const itemCurrency = items[0]?.currencySymbol || currencySymbol;
 
   const shippingPrice = useMemo(() => {
     if (!shippingOptions || shippingOptions.length === 0) return 0;
@@ -291,7 +330,17 @@ export default function CheckoutPage() {
   return (
     <DefaultPage>
       <PrivateRoute>
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div
+          data-checkout-platform={originPlatform}
+          className={cn(
+            "mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8",
+            // When checkout was initiated from QuickGo, the teal accent tokens
+            // layered in hecate-quickgo/layout.tsx won't apply here (we're
+            // under the default store route), so tag the wrapper so targeted
+            // styles + the theme toggle can key off it in future passes.
+            originPlatform === "quickgo" && "checkout-theme-quickgo",
+          )}
+        >
           <h1 className="text-2xl font-bold text-[var(--text-primary)] sm:text-3xl mb-6">Checkout</h1>
 
           {items.length === 0 ? (
@@ -319,11 +368,61 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Cart Items (grouped by product) */}
+                {/* Cart Items (grouped by product). Checkboxes let the user
+                    skip individual items for this order without removing them
+                    from the cart — all items default to selected. */}
+                {deselectedIds.size > 0 && (
+                  <div className="mb-2 flex items-center justify-between rounded-lg bg-[var(--accent-primary)]/5 px-3 py-2 text-xs text-[var(--accent-primary)]">
+                    <span>
+                      {deselectedIds.size} item(s) skipped — they&apos;ll stay
+                      in your cart.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDeselectedIds(new Set())}
+                      className="font-semibold hover:underline"
+                    >
+                      Select all
+                    </button>
+                  </div>
+                )}
                 <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] divide-y divide-[var(--border-primary)]">
-                  {groupCheckoutItems(items).map((group) => (
-                    <CheckoutGroupRow key={group.key} group={group} symbol={itemCurrency} />
-                  ))}
+                  {groupCheckoutItems(cartItems ?? []).map((group) => {
+                    const groupIds = group.items.map((i) => i.id);
+                    const allDeselected = groupIds.every((id) =>
+                      deselectedIds.has(id),
+                    );
+                    return (
+                      <div
+                        key={group.key}
+                        className={cn(
+                          "transition-opacity",
+                          allDeselected && "opacity-50",
+                        )}
+                      >
+                        <label className="flex cursor-pointer items-center gap-3 px-4 pt-3 text-xs text-[var(--text-secondary)]">
+                          <input
+                            type="checkbox"
+                            checked={!allDeselected}
+                            onChange={() => {
+                              setDeselectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (allDeselected) {
+                                  for (const id of groupIds) next.delete(id);
+                                } else {
+                                  for (const id of groupIds) next.add(id);
+                                }
+                                return next;
+                              });
+                            }}
+                            className="h-4 w-4 rounded border-[var(--border-primary)] text-[var(--accent-primary)]"
+                          />
+                          <span>Include in this order</span>
+                        </label>
+                        <CheckoutGroupRow group={group} />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -412,27 +511,27 @@ export default function CheckoutPage() {
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between text-[var(--text-secondary)]">
                       <span>Subtotal ({items.length} items)</span>
-                      <span>{itemCurrency}{subtotal.toLocaleString()}</span>
+                      <span>{format(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-[var(--text-secondary)]">
                       <span>Shipping</span>
-                      <span>{shippingPrice > 0 ? `${itemCurrency}${shippingPrice}` : "Free"}</span>
+                      <span>{shippingPrice > 0 ? format(shippingPrice) : "Free"}</span>
                     </div>
                     {promoApplied && promoDiscount > 0 && (
                       <div className="flex justify-between text-green-600">
                         <span>Promo Discount</span>
-                        <span>-{itemCurrency}{promoDiscount}</span>
+                        <span>-{format(promoDiscount)}</span>
                       </div>
                     )}
                     {donationAmount > 0 && (
                       <div className="flex justify-between text-[var(--text-secondary)]">
                         <span>Donation</span>
-                        <span>{itemCurrency}{donationAmount}</span>
+                        <span>{format(donationAmount)}</span>
                       </div>
                     )}
                     <div className="border-t border-[var(--border-primary)] pt-3 flex justify-between font-bold text-[var(--text-primary)] text-base">
                       <span>Total</span>
-                      <span>{itemCurrency}{total.toLocaleString()}</span>
+                      <span>{format(total)}</span>
                     </div>
                   </div>
                 </div>
@@ -467,7 +566,7 @@ export default function CheckoutPage() {
                             : "border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]"
                         )}
                       >
-                        {itemCurrency}{amt}
+                        {format(amt)}
                       </button>
                     ))}
                   </div>
@@ -502,7 +601,7 @@ export default function CheckoutPage() {
 
                 {/* Place Order */}
                 <Button fullWidth size="lg" loading={placing} onClick={handlePlaceOrder}>
-                  Place Order — {itemCurrency}{total.toLocaleString()}
+                  Place Order — {format(total)}
                 </Button>
               </div>
             </div>
@@ -696,7 +795,8 @@ function groupCheckoutItems(items: CartItem[]): CheckoutGroup[] {
   });
 }
 
-function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: string }) {
+function CheckoutGroupRow({ group }: { group: CheckoutGroup }) {
+  const { format } = usePrice();
   const sharedAttrs = Object.entries(
     (group.items[0].attributes || {}) as Record<string, string>
   ).filter(([k]) => k.toLowerCase() !== "color");
@@ -738,7 +838,7 @@ function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: str
       {/* Sub-rows per color/variation */}
       <div className="space-y-1.5">
         {group.items.map((item) => (
-          <CheckoutSubRow key={item.id} item={item} symbol={symbol} />
+          <CheckoutSubRow key={item.id} item={item} />
         ))}
       </div>
 
@@ -755,17 +855,17 @@ function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: str
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice !== group.totalPrice && (
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-[var(--text-muted)]">Original price</span>
-            <span className="text-xs text-[var(--text-muted)] line-through">{symbol}{group.originalPrice.toLocaleString()}</span>
+            <span className="text-xs text-[var(--text-muted)] line-through">{format(group.originalPrice)}</span>
           </div>
         )}
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-[var(--text-primary)]">You pay</span>
-          <span className="text-sm font-bold text-[var(--text-primary)]">{symbol}{group.totalPrice.toLocaleString()}</span>
+          <span className="text-sm font-bold text-[var(--text-primary)]">{format(group.totalPrice)}</span>
         </div>
         {(group.freeQty > 0 || group.bulkApplied) && group.originalPrice > group.totalPrice && (
           <div className="flex items-center justify-end">
             <span className="text-[10px] font-semibold text-green-600">
-              You save {symbol}{(group.originalPrice - group.totalPrice).toLocaleString()}
+              You save {format(group.originalPrice - group.totalPrice)}
             </span>
           </div>
         )}
@@ -774,9 +874,10 @@ function CheckoutGroupRow({ group, symbol }: { group: CheckoutGroup; symbol: str
   );
 }
 
-function CheckoutSubRow({ item, symbol }: { item: CartItem; symbol: string }) {
+function CheckoutSubRow({ item }: { item: CartItem }) {
   const updateCart = useUpdateCartItem();
   const removeCart = useRemoveCartItem();
+  const { format } = usePrice();
   const isPending = updateCart.isPending || removeCart.isPending;
 
   const attrs = (item.attributes || {}) as Record<string, string>;
@@ -798,9 +899,9 @@ function CheckoutSubRow({ item, symbol }: { item: CartItem; symbol: string }) {
         <div className="flex items-center gap-1.5">
           {colorVal && <span className="text-xs font-medium text-[var(--text-primary)]">{colorVal}</span>}
           {item.bulkApplied ? (
-            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{symbol}{item.effectivePrice} each</span>
+            <span className="text-[11px] text-[var(--accent-primary)] font-semibold">{format(item.effectivePrice ?? item.pricePerItem)} each</span>
           ) : (
-            <span className="text-[11px] text-[var(--text-muted)]">{symbol}{item.pricePerItem} each</span>
+            <span className="text-[11px] text-[var(--text-muted)]">{format(item.pricePerItem)} each</span>
           )}
         </div>
         {item.freeQtyInThisItem != null && item.freeQtyInThisItem > 0 && (
@@ -811,7 +912,7 @@ function CheckoutSubRow({ item, symbol }: { item: CartItem; symbol: string }) {
         )}
       </div>
       <div className="flex flex-col items-end gap-1">
-        <span className="text-xs font-bold text-[var(--text-primary)]">{symbol}{item.totalPrice.toLocaleString()}</span>
+        <span className="text-xs font-bold text-[var(--text-primary)]">{format(item.totalPrice)}</span>
         <QuantityControl
           quantity={item.quantity}
           onIncrement={() => updateCart.mutate({ id: item.id, quantity: item.quantity + 1 })}

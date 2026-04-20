@@ -9,19 +9,37 @@ import { useCartStore } from "@/stores/useCartStore";
 import { useUIStore } from "@/stores/useUIStore";
 import { ROUTES } from "@/config/routes";
 
-const TABS = [
-  { label: "Home", href: ROUTES.HOME, icon: Home },
-  { label: "Categories", href: ROUTES.CATEGORIES, icon: Grid3X3 },
-  { label: "Search", href: "__search__", icon: Search },
-  { label: "Cart", href: "__cart__", icon: ShoppingBag },
-  { label: "Account", href: ROUTES.DASHBOARD, icon: User },
-] as const;
+type SiteVariant = "wizard" | "quickgo" | "jyotish";
+
+function getSiteVariant(pathname: string): SiteVariant {
+  if (pathname.startsWith("/hecate-quickgo")) return "quickgo";
+  if (pathname.startsWith("/jyotish")) return "jyotish";
+  return "wizard";
+}
 
 export function MobileNav({ className }: { className?: string }) {
   const pathname = usePathname();
+  const variant = getSiteVariant(pathname);
   const itemCount = useCartStore((s) => s.itemCount());
   const toggleCart = useCartStore((s) => s.toggleCart);
   const { setSearchOpen } = useUIStore();
+
+  const TABS =
+    variant === "quickgo"
+      ? ([
+          { label: "Home", href: ROUTES.QUICKGO.HOME, icon: Home },
+          { label: "Categories", href: ROUTES.QUICKGO.CATEGORIES, icon: Grid3X3 },
+          { label: "Search", href: "__search__", icon: Search },
+          { label: "Cart", href: "__cart__", icon: ShoppingBag },
+          { label: "Account", href: ROUTES.QUICKGO.DASHBOARD, icon: User },
+        ] as const)
+      : ([
+          { label: "Home", href: ROUTES.HOME, icon: Home },
+          { label: "Categories", href: ROUTES.CATEGORIES, icon: Grid3X3 },
+          { label: "Search", href: "__search__", icon: Search },
+          { label: "Cart", href: "__cart__", icon: ShoppingBag },
+          { label: "Account", href: ROUTES.DASHBOARD, icon: User },
+        ] as const);
 
   return (
     <nav

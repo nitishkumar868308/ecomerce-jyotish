@@ -5,16 +5,22 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCategories } from "@/services/categories";
 import { useProducts } from "@/services/products";
+import { filterByPlatform } from "@/lib/products";
+import { resolveAssetUrl } from "@/lib/assetUrl";
+import { useQuickGoStore } from "@/stores/useQuickGoStore";
 
 export default function QuickGoCategoriesPage() {
   const searchParams = useSearchParams();
   const initialCat = searchParams.get("cat") || "";
   const [selectedCat, setSelectedCat] = useState(initialCat);
   const { data: categories, isLoading: catLoading } = useCategories();
-  const { data: productsData, isLoading: prodLoading } = useProducts(
-    selectedCat ? { category: selectedCat } : undefined,
-  );
-  const products = productsData?.data ?? [];
+  const quickGoCity = useQuickGoStore((s) => s.city);
+  const { data: productsData, isLoading: prodLoading } = useProducts({
+    ...(selectedCat ? { categoryId: selectedCat } : {}),
+    platform: "quickgo",
+    city: quickGoCity || undefined,
+  });
+  const products = filterByPlatform(productsData?.data, "quickgo");
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -111,17 +117,23 @@ export default function QuickGoCategoriesPage() {
                   href={`/hecate-quickgo/product/${p.slug || p._id || p.id}`}
                   className="group rounded-xl border border-[var(--qg-border,#e0f2f1)] bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  {p.images?.[0] || p.image ? (
-                    <img
-                      src={p.images?.[0] || p.image}
-                      alt={p.name}
-                      className="mb-3 h-28 w-full rounded-lg object-contain"
-                    />
-                  ) : (
-                    <div className="mb-3 flex h-28 w-full items-center justify-center rounded-lg bg-[var(--qg-primary,#0d9488)]/5 text-2xl">
-                      {p.name?.[0]}
-                    </div>
-                  )}
+                  {(() => {
+                    const rawImg = Array.isArray(p.image)
+                      ? p.image[0]
+                      : p.images?.[0] || p.image;
+                    const resolved = resolveAssetUrl(rawImg);
+                    return resolved ? (
+                      <img
+                        src={resolved}
+                        alt={p.name}
+                        className="mb-3 h-28 w-full rounded-lg object-contain"
+                      />
+                    ) : (
+                      <div className="mb-3 flex h-28 w-full items-center justify-center rounded-lg bg-[var(--qg-primary,#0d9488)]/5 text-2xl">
+                        {p.name?.[0]}
+                      </div>
+                    );
+                  })()}
                   <h3 className="mb-1 truncate text-sm font-medium group-hover:text-[var(--qg-primary,#0d9488)]">
                     {p.name}
                   </h3>

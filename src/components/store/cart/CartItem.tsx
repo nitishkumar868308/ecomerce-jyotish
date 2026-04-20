@@ -88,25 +88,25 @@ export function CartItemCard({ item, className }: CartItemProps) {
               onClick={handleDecrease}
               disabled={isPending}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-l-lg transition-colors",
+                "flex h-9 w-10 items-center justify-center rounded-l-lg transition-colors select-none touch-manipulation active:scale-95",
                 isLastItem
                   ? "text-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/10"
-                  : "text-[var(--text-muted)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]",
               )}
               aria-label={isLastItem ? "Remove item" : "Decrease quantity"}
             >
-              {isLastItem ? <Trash2 className="h-3.5 w-3.5" /> : <Minus className="h-3 w-3" />}
+              {isLastItem ? <Trash2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
             </button>
-            <span className="flex h-7 w-7 items-center justify-center text-xs font-semibold text-[var(--text-primary)]">
+            <span className="flex h-9 w-9 items-center justify-center text-sm font-semibold text-[var(--text-primary)]">
               {item.quantity}
             </span>
             <button
               onClick={handleIncrease}
               disabled={isPending}
-              className="flex h-7 w-7 items-center justify-center rounded-r-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              className="flex h-9 w-10 items-center justify-center rounded-r-lg text-[var(--text-muted)] transition-colors select-none touch-manipulation active:scale-95 hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] disabled:opacity-40"
               aria-label="Increase quantity"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-4 w-4" />
             </button>
           </div>
 

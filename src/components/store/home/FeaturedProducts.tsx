@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useCategories, useSubcategories } from "@/services/categories";
 import { useProductsFast } from "@/services/products";
+import { filterByPlatform } from "@/lib/products";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ROUTES } from "@/config/routes";
 import Image from "next/image";
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 import type { Product } from "@/types/product";
 import type { Category, Subcategory } from "@/types/category";
+import { productImage } from "@/lib/assetUrl";
+import { usePrice } from "@/hooks/usePrice";
 
 interface SlideEntry {
   category: Category;
@@ -227,7 +230,7 @@ function SubcategoryProducts({
   const { data, isLoading } = useProductsFast(filters as any);
 
   const products: Product[] = Array.isArray(data?.data?.products)
-    ? data.data.products.slice(0, 9)
+    ? filterByPlatform(data.data.products as Product[], "wizard").slice(0, 9)
     : [];
 
   if (isLoading) {
@@ -272,7 +275,8 @@ function SubcategoryProducts({
 }
 
 function ProductCard({ product }: { product: Product }) {
-  const imageSrc = product.image?.[0];
+  const { format } = usePrice();
+  const imgSrc = productImage(product, 0);
   const price = Number(product.price) || 0;
   const mrp = Number(product.MRP) || 0;
   const hasDiscount = mrp > 0 && mrp > price;
@@ -323,9 +327,9 @@ function ProductCard({ product }: { product: Product }) {
     >
       {/* Image */}
       <div className="relative aspect-[4/5] overflow-hidden bg-[var(--bg-secondary)]">
-        {imageSrc ? (
+        {imgSrc !== "/placeholder.png" ? (
           <Image
-            src={imageSrc}
+            src={imgSrc}
             alt={product.name}
             fill
             className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -353,21 +357,17 @@ function ProductCard({ product }: { product: Product }) {
         {/* Price */}
         <div className="flex items-baseline gap-1 flex-wrap">
           <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)]">
-            {product.currencySymbol || ""}
-            {product.price}
+            <span>{format(product.price)}</span>
           </span>
           {hasDiscount && (
             <span className="text-[9px] sm:text-[10px] text-[var(--text-tertiary)] line-through">
-              {product.currencySymbol || ""}
-              {product.MRP}
+              <span>{format(product.MRP)}</span>
             </span>
           )}
         </div>
         {priceRange && (
           <p className="text-[9px] sm:text-[10px] text-[var(--text-muted)]">
-            {product.currencySymbol || ""}
-            {priceRange.min} – {product.currencySymbol || ""}
-            {priceRange.max}
+            <span>{format(priceRange.min)}</span> – <span>{format(priceRange.max)}</span>
           </p>
         )}
 

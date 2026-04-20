@@ -10,6 +10,7 @@ import { QueryProvider } from "@/providers/QueryProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ProgressBar } from "@/components/ui/loader/ProgressBar";
 import { API_CONFIG } from "@/lib/api";
+import AuthModal from "@/components/store/auth/AuthModal";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,6 +34,9 @@ export default function RootLayout({
               <AuthProvider>
                 <ProgressBar />
                 {children}
+                {/* Mounted globally so the Sign-in prompt on admin routes can
+                    open it (AdminLayout does not render DefaultPage). */}
+                <AuthModal />
                 <Toaster
                   position="top-right"
                   reverseOrder={false}

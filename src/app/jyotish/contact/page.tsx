@@ -1,15 +1,40 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { CelestialBackground } from "@/components/jyotish/ui/CelestialBackground";
+import { api, ENDPOINTS } from "@/lib/api";
+import { useAuthStore } from "@/stores/useAuthStore";
+import toast from "react-hot-toast";
 
 export default function JyotishContactPage() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { user, isLoggedIn } = useAuthStore();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Same prefill behaviour as the main /contact page — logged-in users
+  // get name + email filled in automatically.
+  useEffect(() => {
+    if (!isLoggedIn || !user) return;
+    setForm((prev) => ({
+      ...prev,
+      name: prev.name || user.name || "",
+      email: prev.email || user.email || "",
+    }));
+  }, [isLoggedIn, user?.email, user?.name]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await api.post(ENDPOINTS.CONTACT.SEND, { ...form, platform: "jyotish" });
+      setSubmitted(true);
+    } catch {
+      toast.error("Couldn't send your message — please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -108,9 +133,10 @@ export default function JyotishContactPage() {
                   </div>
                   <button
                     type="submit"
-                    className="w-full rounded-lg bg-gradient-to-r from-[var(--jy-accent-gold)] to-amber-500 py-3 text-sm font-semibold text-[var(--jy-bg-primary)] transition-transform hover:scale-[1.02]"
+                    disabled={submitting}
+                    className="w-full rounded-lg bg-gradient-to-r from-[var(--jy-accent-gold)] to-amber-500 py-3 text-sm font-semibold text-[var(--jy-bg-primary)] transition-transform hover:scale-[1.02] disabled:cursor-wait disabled:opacity-60"
                   >
-                    Send Message
+                    {submitting ? "Sending..." : "Send Message"}
                   </button>
                 </form>
               )}

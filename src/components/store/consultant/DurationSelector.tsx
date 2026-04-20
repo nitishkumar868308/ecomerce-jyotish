@@ -3,7 +3,7 @@
 import React from "react";
 import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePriceConverter } from "@/hooks/usePriceConverter";
+import { usePrice } from "@/hooks/usePrice";
 import type { ConsultantDuration } from "@/types/consultant";
 
 interface DurationSelectorProps {
@@ -19,7 +19,7 @@ export function DurationSelector({
   onSelect,
   className,
 }: DurationSelectorProps) {
-  const { format } = usePriceConverter();
+  const { format } = usePrice();
 
   if (durations.length === 0) {
     return null;

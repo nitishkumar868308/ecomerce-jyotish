@@ -3,6 +3,7 @@ import { api, ENDPOINTS } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
 import type { User, LoginPayload, RegisterPayload, AuthResponse } from "@/types/user";
 import type { ApiResponse } from "@/types/api";
+import { apiError } from "@/lib/apiMessage";
 import toast from "react-hot-toast";
 
 export function useMe() {
@@ -124,6 +125,19 @@ export function useResetPassword() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Reset failed");
+    },
+  });
+}
+
+export interface UpdateMyCountryPayload {
+  country: string;
+}
+
+export function useUpdateMyCountry() {
+  return useMutation({
+    mutationFn: async (payload: UpdateMyCountryPayload) => {
+      const { data } = await api.put(ENDPOINTS.AUTH.UPDATE_USER, payload);
+      return data;
     },
   });
 }

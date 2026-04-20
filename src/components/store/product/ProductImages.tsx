@@ -6,6 +6,7 @@ import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 
 interface ProductImagesProps {
   images: string[];
@@ -19,8 +20,10 @@ export function ProductImages({
   className,
 }: ProductImagesProps) {
   const displayImages = useMemo(() => {
-    const valid = images.filter((img) => typeof img === "string" && img.trim() !== "");
-    return valid.length > 0 ? valid : ["/placeholder.png"];
+    const normalised = (images ?? [])
+      .map((src) => resolveAssetUrl(src))
+      .filter(Boolean) as string[];
+    return normalised.length > 0 ? normalised : ["/placeholder.png"];
   }, [images]);
 
   const [activeIndex, setActiveIndex] = useState(0);

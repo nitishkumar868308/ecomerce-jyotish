@@ -4,12 +4,17 @@ import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePrice } from "@/hooks/usePrice";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import { useAddToCart, useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { calculateOffer } from "@/lib/offers";
 import { ProductImages } from "./ProductImages";
 import { OfferList } from "./OfferList";
+import { BulkPricingList } from "./BulkPricingList";
 import { QuantityControl } from "@/components/store/shared/QuantityControl";
+import { ProductVariationGrid } from "./ProductVariationGrid";
+import { ProductTabs } from "./ProductTabs";
 import type { Product, ProductVariation } from "@/types/product";
 
 interface ProductDetailProps {
@@ -17,30 +22,22 @@ interface ProductDetailProps {
   className?: string;
 }
 
-/**
- * Parse variationName like "Color: White / Type of wax: Pure Beeswax"
- * into { "Color": "White", "Type of wax": "Pure Beeswax" }
- */
-function parseVariationName(
-  variationName?: string
-): Record<string, string> {
-  if (!variationName) return {};
-  const parts = variationName.split("/").map((p) => p.trim());
-  const result: Record<string, string> = {};
-  for (const part of parts) {
-    const colonIdx = part.indexOf(":");
-    if (colonIdx > 0) {
-      const key = part.slice(0, colonIdx).trim();
-      const val = part.slice(colonIdx + 1).trim();
-      if (key && val) result[key] = val;
-    }
-  }
-  return result;
-}
 
 export function ProductDetail({ product, className }: ProductDetailProps) {
+  const { format } = usePrice();
+
+  const sortedVariations = useMemo(() => {
+    const arr = [...(product.variations ?? [])];
+    arr.sort((a, b) => {
+      const ao = (a as { sortOrder?: number }).sortOrder ?? 999999;
+      const bo = (b as { sortOrder?: number }).sortOrder ?? 999999;
+      return ao - bo;
+    });
+    return arr;
+  }, [product.variations]);
+
   const [selectedVariation, setSelectedVariation] =
-    useState<ProductVariation | null>(product.variations?.[0] ?? null);
+    useState<ProductVariation | null>(sortedVariations[0] ?? null);
   const [quantity, setQuantity] = useState(1);
   const { user } = useAuthStore();
   const addToCart = useAddToCart();
@@ -59,64 +56,68 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
   const activeStock = selectedVariation?.stock
     ? Number(selectedVariation.stock)
     : Number(product.stock) || 0;
-  const currSymbol = product.currencySymbol || "₹";
 
-  const primaryOffer = product.primaryOffer || product.offers?.[0] || null;
-  const offerResult = calculateOffer(activePrice, primaryOffer);
+  const variationOffer = useMemo(() => {
+    if (!selectedVariation?.offerId) return null;
+    return (
+      (product.offers ?? []).find(
+        (o) => o.id === selectedVariation.offerId,
+      ) ?? null
+    );
+  }, [selectedVariation, product.offers]);
+
+  const primaryOffer =
+    variationOffer || product.primaryOffer || product.offers?.[0] || null;
+  const offerResult = calculateOffer(activePrice, primaryOffer, quantity);
 
   const discount =
     activeMrp && activeMrp > activePrice
       ? Math.round(((activeMrp - activePrice) / activeMrp) * 100)
       : 0;
 
-  const images = useMemo(() => {
-    const imgs = [...(product.image || [])].filter(
-      (img) => img && img.trim() !== ""
-    );
-    if (selectedVariation?.image) {
-      const varImages = Array.isArray(selectedVariation.image)
-        ? selectedVariation.image
-        : [selectedVariation.image];
-      varImages
-        .filter((img) => img && img.trim() !== "")
-        .forEach((img) => {
-          if (!imgs.includes(img)) {
-            imgs.unshift(img);
-          }
-        });
-    }
-    return imgs;
-  }, [product.image, selectedVariation]);
+  // Resolve gallery images: variation images first, then base product images
+  const baseImages = (product.image ?? [])
+    .map((s) => resolveAssetUrl(s))
+    .filter(Boolean) as string[];
+  const variationImages = (() => {
+    if (!selectedVariation?.image) return [] as string[];
+    const raw = Array.isArray(selectedVariation.image)
+      ? selectedVariation.image
+      : [selectedVariation.image];
+    return raw.map((s) => resolveAssetUrl(s)).filter(Boolean) as string[];
+  })();
+  const gallery = Array.from(new Set([...variationImages, ...baseImages]));
+  const finalGallery = gallery.length > 0 ? gallery : ["/placeholder.png"];
 
-  // Parse variations into attribute groups from variationName
-  const { variationGroups, parsedVariations } = useMemo(() => {
-    if (!product.variations || product.variations.length === 0)
-      return { variationGroups: {} as Record<string, string[]>, parsedVariations: new Map<string, Record<string, string>>() };
+  const activeShort =
+    (selectedVariation as { short?: string } | null)?.short?.trim() ||
+    (product as { short?: string }).short?.trim() ||
+    "";
 
+  // Parse each variation's attributes (try structured attributes first, fallback to variationName)
+  const parsedVariations = useMemo(() => {
     const parsed = new Map<string, Record<string, string>>();
-    const groups: Record<string, Set<string>> = {};
-
-    for (const v of product.variations) {
-      // Try attributes first, fallback to parsing variationName
+    for (const v of sortedVariations) {
       const attrs =
         v.attributes && Object.keys(v.attributes).length > 0
           ? v.attributes
-          : parseVariationName(v.variationName);
-
+          : (() => {
+              const name = v.variationName ?? "";
+              if (!name) return {};
+              return name.split("/").reduce<Record<string, string>>((acc, chunk) => {
+                const colonIdx = chunk.indexOf(":");
+                if (colonIdx > 0) {
+                  const k = chunk.slice(0, colonIdx).trim();
+                  const val = chunk.slice(colonIdx + 1).trim();
+                  if (k && val) acc[k] = val;
+                }
+                return acc;
+              }, {});
+            })();
       parsed.set(v.id, attrs);
-
-      for (const [key, val] of Object.entries(attrs)) {
-        if (!groups[key]) groups[key] = new Set();
-        groups[key].add(val);
-      }
     }
-
-    const variationGroups = Object.fromEntries(
-      Object.entries(groups).map(([key, valSet]) => [key, Array.from(valSet)])
-    );
-
-    return { variationGroups, parsedVariations: parsed };
-  }, [product.variations]);
+    return parsed;
+  }, [sortedVariations]);
 
   // Track selected attributes across all groups
   const selectedAttrs = useMemo(() => {
@@ -140,21 +141,15 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
   const cartQty = currentCartItem?.quantity ?? 0;
   const isInCart = cartQty > 0;
 
-  // Get cart count for a specific variation's attributes
-  const getVariationCartCount = (variationId: string): number => {
-    if (!cartItems) return 0;
-    const varAttrs = parsedVariations.get(variationId) || {};
-    return cartItems
-      .filter((ci) => {
-        if (ci.productId !== product.id) return false;
-        const ciAttrs = (ci.attributes || {}) as Record<string, string>;
-        const keys1 = Object.keys(varAttrs).sort();
-        const keys2 = Object.keys(ciAttrs).sort();
-        if (keys1.length !== keys2.length) return false;
-        return keys1.every((k, i) => k === keys2[i] && varAttrs[k] === ciAttrs[k]);
-      })
-      .reduce((sum, ci) => sum + ci.quantity, 0);
-  };
+  // Build a per-variation cart count map keyed by variationId
+  const cartCountByVariationId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const item of cartItems ?? []) {
+      if (!item.variationId) continue;
+      map[item.variationId] = (map[item.variationId] ?? 0) + item.quantity;
+    }
+    return map;
+  }, [cartItems]);
 
   // Total qty of this product across all colors (for bulk check)
   const totalProductQty = useMemo(() => {
@@ -181,12 +176,12 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
       pricePerItem: offerResult.hasOffer
         ? offerResult.discountedPrice
         : activePrice,
-      currencySymbol: currSymbol,
+      currencySymbol: product.currencySymbol || "₹",
       totalPrice:
         (offerResult.hasOffer ? offerResult.discountedPrice : activePrice) *
         quantity,
       attributes: selectedAttrs,
-      image: images[0],
+      image: finalGallery[0],
       userId: user?.id,
       selectedCountry: product.currency || undefined,
       currency: product.currency || undefined,
@@ -210,25 +205,6 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
     setQuantity(1);
   };
 
-  // Find matching variation when user clicks an attribute value
-  const findVariationByAttr = (
-    attrKey: string,
-    attrVal: string
-  ): ProductVariation | undefined => {
-    // Build desired attrs: current selected attrs but override the clicked key
-    const desired = { ...selectedAttrs, [attrKey]: attrVal };
-
-    return product.variations?.find((v) => {
-      const vAttrs = parsedVariations.get(v.id) || {};
-      return Object.entries(desired).every(([k, val]) => vAttrs[k] === val);
-    }) || product.variations?.find((v) => {
-      const vAttrs = parsedVariations.get(v.id) || {};
-      return vAttrs[attrKey] === attrVal;
-    });
-  };
-
-  const hasVariationGroups = Object.keys(variationGroups).length > 0;
-
   return (
     <div className={cn("pb-20 lg:pb-0", className)}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10">
@@ -238,7 +214,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <ProductImages images={images} productName={product.name} />
+          <ProductImages images={finalGallery} productName={product.name} />
         </motion.div>
 
         {/* Right: Product Info */}
@@ -253,17 +229,22 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
             {product.name}
           </h1>
 
+          {/* Short description */}
+          {activeShort ? (
+            <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+              {activeShort}
+            </p>
+          ) : null}
+
           {/* Price */}
           <div className="mt-4 flex flex-wrap items-baseline gap-3">
             {offerResult.hasOffer ? (
               <>
                 <span className="text-3xl font-bold text-[var(--accent-success)]">
-                  {currSymbol}
-                  {offerResult.discountedPrice.toLocaleString()}
+                  {format(offerResult.discountedPrice)}
                 </span>
                 <span className="text-lg text-[var(--text-secondary)] line-through">
-                  {currSymbol}
-                  {activePrice.toLocaleString()}
+                  {format(activePrice)}
                 </span>
                 <span className="text-sm font-semibold text-[var(--accent-success)]">
                   {offerResult.discountLabel}
@@ -272,14 +253,12 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
             ) : (
               <>
                 <span className="text-3xl font-bold text-[var(--text-primary)]">
-                  {currSymbol}
-                  {activePrice.toLocaleString()}
+                  {format(activePrice)}
                 </span>
                 {activeMrp > 0 && activeMrp > activePrice && (
                   <>
                     <span className="text-lg text-[var(--text-secondary)] line-through">
-                      {currSymbol}
-                      {activeMrp.toLocaleString()}
+                      {format(activeMrp)}
                     </span>
                     <span className="text-sm font-semibold text-[var(--accent-success)]">
                       {discount}% OFF
@@ -291,118 +270,62 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
           </div>
 
           {/* Offers + Bulk Price */}
-          <OfferList
-            offers={product.offers}
-            bulkPrice={product.bulkPrice}
-            minQuantity={product.minQuantity}
-            currencySymbol={currSymbol}
-            claimedOfferIds={
-              cartItems
-                ?.filter((ci) => ci.productId === product.id && ci.offerSummary?.claimed)
-                .map((ci) => ci.offerSummary!.offerId) ?? []
-            }
-            bulkApplied={isBulkActive}
-          />
+          {((product.primaryOffer && product.primaryOffer.active) ||
+            (Array.isArray(product.offers) && product.offers.some((o) => o.active)) ||
+            (parseFloat(product.bulkPrice ?? "0") > 0 &&
+              parseInt(product.minQuantity ?? "0", 10) > 0)) && (
+            <OfferList
+              offers={product.offers}
+              bulkPrice={product.bulkPrice}
+              minQuantity={product.minQuantity}
+              activeQuantity={totalProductQty + quantity}
+              claimedOfferIds={
+                cartItems
+                  ?.filter((ci) => ci.productId === product.id && ci.offerSummary?.claimed)
+                  .map((ci) => ci.offerSummary!.offerId) ?? []
+              }
+              bulkApplied={isBulkActive}
+            />
+          )}
+
+          {/* Bulk pricing tiers */}
+          <div className="mt-3">
+            <BulkPricingList
+              tiers={
+                ((product as { bulkPricingTiers?: Array<{ qty: number; unitPrice: number }> })
+                  .bulkPricingTiers) ?? []
+              }
+              currencySymbol={product.currencySymbol || "₹"}
+              activeQty={totalProductQty}
+            />
+          </div>
 
           {/* Divider */}
           <div className="my-5 border-t border-[var(--border-primary)]" />
 
           {/* Variations */}
-          {product.variations && product.variations.length > 0 && (
-            <div className="mb-5 space-y-4">
-              {hasVariationGroups ? (
-                Object.entries(variationGroups).map(
-                  ([attrKey, attrValues]) => (
-                    <div key={attrKey}>
-                      <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-                        {attrKey}
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {attrValues.map((val) => {
-                          const isSelected = selectedAttrs[attrKey] === val;
-                          const matchingVar = findVariationByAttr(
-                            attrKey,
-                            val
-                          );
-                          const isOutOfStock =
-                            matchingVar && Number(matchingVar.stock) <= 0;
-
-                          const varCartCount = matchingVar ? getVariationCartCount(matchingVar.id) : 0;
-
-                          return (
-                            <button
-                              key={val}
-                              onClick={() => {
-                                if (matchingVar && !isOutOfStock) {
-                                  handleVariationSelect(matchingVar);
-                                }
-                              }}
-                              disabled={!!isOutOfStock}
-                              className={cn(
-                                "relative rounded-lg border px-4 py-2 text-sm font-medium transition-all",
-                                isSelected
-                                  ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-white shadow-sm"
-                                  : isOutOfStock
-                                    ? "cursor-not-allowed border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-muted)] line-through opacity-50"
-                                    : "border-[var(--border-primary)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/5"
-                              )}
-                            >
-                              {val}
-                              {varCartCount > 0 && (
-                                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                                  {varCartCount}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )
-                )
-              ) : (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-                    Variant
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {product.variations.map((v) => {
-                      const isSelected = selectedVariation?.id === v.id;
-                      const isOutOfStock = Number(v.stock) <= 0;
-                      return (
-                        <button
-                          key={v.id}
-                          onClick={() =>
-                            !isOutOfStock && handleVariationSelect(v)
-                          }
-                          disabled={isOutOfStock}
-                          className={cn(
-                            "rounded-lg border px-4 py-2 text-sm font-medium transition-all",
-                            isSelected
-                              ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-white shadow-sm"
-                              : isOutOfStock
-                                ? "cursor-not-allowed border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-muted)] line-through opacity-50"
-                                : "border-[var(--border-primary)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/5"
-                          )}
-                        >
-                          {v.variationName || v.name || v.sku}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+          {sortedVariations && sortedVariations.length > 0 && (
+            <div className="mb-5">
+              <ProductVariationGrid
+                variations={sortedVariations}
+                selectedId={selectedVariation?.id ?? null}
+                onSelect={(v) => handleVariationSelect(v)}
+                cartCountByVariationId={cartCountByVariationId}
+              />
             </div>
           )}
 
           {/* Bulk price indicator */}
-          {isBulkActive && (
-            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/20">
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Bulk price active: {currSymbol}{bulkPrice} each ({totalProductQty} total in cart)
-              </p>
-            </div>
-          )}
+          {parseFloat(product.bulkPrice ?? "0") > 0 &&
+            parseInt(product.minQuantity ?? "0", 10) > 0 && (
+              <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/20">
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                  {isBulkActive
+                    ? `Bulk price active: ${format(bulkPrice)} each (${totalProductQty} total in cart)`
+                    : `Buy ${parseInt(product.minQuantity ?? "0", 10)}+ units to get ${format(bulkPrice)} each`}
+                </p>
+              </div>
+            )}
 
           {/* Desktop: Quantity + Add to Cart OR Increment/Decrement */}
           <div className="hidden lg:block">
@@ -420,7 +343,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
                   className="w-full justify-center"
                 />
                 <div className="flex items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 text-sm font-medium text-[var(--text-secondary)]">
-                  {cartQty} in cart · {currSymbol}{(displayPrice * cartQty).toLocaleString()}
+                  {cartQty} in cart · {format(displayPrice * cartQty)}
                 </div>
               </div>
             ) : (
@@ -465,6 +388,10 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
         </motion.div>
       </div>
 
+      {/* Tabs: Description / Product Details / Reviews & Rating
+          (long description lives inside the Description tab below) */}
+      <ProductTabs product={product} selectedVariation={selectedVariation} />
+
       {/* Mobile Fixed Bottom Bar */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex items-stretch gap-3 border-t border-[var(--border-primary)] bg-[var(--bg-primary)] px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] lg:hidden">
         {isInCart ? (
@@ -481,7 +408,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
               size="sm"
             />
             <div className="flex flex-1 items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-sm font-medium text-[var(--text-secondary)]">
-              {cartQty} in cart · {currSymbol}{(displayPrice * cartQty).toLocaleString()}
+              {cartQty} in cart · {format(displayPrice * cartQty)}
             </div>
           </>
         ) : (

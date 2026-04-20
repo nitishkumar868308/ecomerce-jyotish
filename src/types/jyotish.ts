@@ -1,3 +1,12 @@
+export type AstrologerStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface JyotishTaxConfig {
+  id: number;
+  gstPercent: number;
+  updatedAt?: string;
+  updatedBy?: number | string;
+}
+
 export interface Astrologer {
   id: number;
   name: string;
@@ -16,6 +25,14 @@ export interface Astrologer {
   isActive: boolean;
   gallery?: string[];
   documents?: string[];
+  status: AstrologerStatus;
+  commissionPercent?: number;
+  approvedAt?: string;
+  approvedBy?: number | string;
+  rejectionReason?: string;
+  freeOfferActive?: boolean;
+  freeOfferMessage?: string;
+  freeSessionsRemaining?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,7 +48,17 @@ export interface ChatSession {
   endedAt?: string;
   duration?: number;
   totalAmount?: number;
+  grossAmount?: number;
+  gstPercent?: number;
+  gstAmount?: number;
+  commissionPercent?: number;
+  commissionAmount?: number;
+  astrologerAmount?: number;
+  platformAmount?: number;
   messages?: ChatMessage[];
+  isFree?: boolean;
+  freeOfferSource?: "ASTROLOGER" | "ADMIN";
+  freeOfferId?: number;
   createdAt: string;
 }
 
@@ -87,4 +114,20 @@ export interface JyotishSlot {
   startTime: string;
   endTime: string;
   isBooked: boolean;
+}
+
+export interface FreeConsultationOffer {
+  id: number;
+  astrologerId: number;
+  astrologer?: Astrologer;
+  title: string;
+  description?: string;
+  astrologerAmount: number;
+  adminAmount: number;
+  sessionsCap: number;
+  sessionsUsed: number;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+  createdAt: string;
 }

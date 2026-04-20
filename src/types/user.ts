@@ -1,4 +1,4 @@
-export type UserRole = "USER" | "ADMIN" | "SUPER_ADMIN";
+export type UserRole = "USER" | "ADMIN" | "SUPER_ADMIN" | "ASTROLOGER";
 
 export interface User {
   id: number;
@@ -10,6 +10,11 @@ export interface User {
   profileImage?: string;
   gender?: string;
   countryCode?: string;
+  country?: string;
+  lastLoginAt?: string | null;
+  lastLogin?: string | null;
+  loginCount?: number;
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
 }

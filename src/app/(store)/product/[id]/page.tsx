@@ -7,16 +7,13 @@ import ProductDetail from "@/components/store/product/ProductDetail";
 import RelatedProducts from "@/components/store/product/RelatedProducts";
 import { useProduct } from "@/services/products";
 import { ROUTES } from "@/config/routes";
-import { Loader2 } from "lucide-react";
+import { Loader } from "@/components/ui/Loader";
 
 function ProductSkeleton() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex items-center justify-center py-20">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-primary)]" />
-          <p className="text-sm text-[var(--text-secondary)]">Loading product...</p>
-        </div>
+        <Loader variant="section" message="Loading product..." />
       </div>
     </div>
   );
@@ -55,6 +52,7 @@ export default function ProductPage() {
               <RelatedProducts
                 categoryId={product.categoryId}
                 currentProductId={product.id}
+                platform="wizard"
               />
             </div>
           )}

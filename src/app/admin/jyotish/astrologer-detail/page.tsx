@@ -10,12 +10,21 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useAdminAstrologers } from "@/services/admin/jyotish";
-import { Eye } from "lucide-react";
+import { Eye, Check, X, Percent } from "lucide-react";
+import { ApproveAstrologerModal } from "@/components/admin/jyotish/ApproveAstrologerModal";
+import { RejectAstrologerModal } from "@/components/admin/jyotish/RejectAstrologerModal";
+import { SetCommissionModal } from "@/components/admin/jyotish/SetCommissionModal";
+import type { Astrologer, AstrologerStatus } from "@/types/jyotish";
+import { cn } from "@/lib/utils";
 
 export default function AstrologerDetailPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [viewItem, setViewItem] = useState<Record<string, unknown> | null>(null);
+  const [statusFilter, setStatusFilter] = useState<AstrologerStatus | "ALL">("PENDING");
+  const [approveTarget, setApproveTarget] = useState<Astrologer | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Astrologer | null>(null);
+  const [commissionTarget, setCommissionTarget] = useState<Astrologer | null>(null);
 
   const { data, isLoading } = useAdminAstrologers({ page, limit: 20, search });
 
@@ -23,6 +32,14 @@ export default function AstrologerDetailPage() {
     setSearch(value);
     setPage(1);
   }, []);
+
+  const getStatus = (a: Record<string, unknown>): AstrologerStatus =>
+    (a.status as AstrologerStatus) ?? (a.isVerified ? "APPROVED" : "PENDING");
+
+  const allAstrologers = (data?.data as Record<string, unknown>[]) ?? [];
+  const displayedAstrologers = allAstrologers.filter((a) =>
+    statusFilter === "ALL" ? true : getStatus(a) === statusFilter
+  );
 
   const columns: Column<Record<string, unknown>>[] = [
     {
@@ -47,7 +64,11 @@ export default function AstrologerDetailPage() {
     {
       key: "isVerified",
       label: "Status",
-      render: (val) => <Badge variant={val ? "success" : "warning"}>{val ? "Verified" : "Pending"}</Badge>,
+      render: (_val, row) => {
+        const s = getStatus(row);
+        const variant = s === "APPROVED" ? "success" : s === "REJECTED" ? "danger" : "warning";
+        return <Badge variant={variant}>{s}</Badge>;
+      },
     },
     {
       key: "id",
@@ -57,6 +78,36 @@ export default function AstrologerDetailPage() {
           <Button variant="ghost" size="sm" onClick={() => setViewItem(row)}>
             <Eye className="h-4 w-4" />
           </Button>
+          {getStatus(row) === "PENDING" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setApproveTarget(row as unknown as Astrologer)}
+                title="Approve"
+                className="rounded-lg bg-[var(--accent-success)]/10 p-2 text-[var(--accent-success)] hover:bg-[var(--accent-success)]/20"
+              >
+                <Check className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setRejectTarget(row as unknown as Astrologer)}
+                title="Reject"
+                className="rounded-lg bg-[var(--accent-danger)]/10 p-2 text-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          {getStatus(row) === "APPROVED" && (
+            <button
+              type="button"
+              onClick={() => setCommissionTarget(row as unknown as Astrologer)}
+              title="Edit commission"
+              className="rounded-lg bg-[var(--bg-tertiary)] p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+            >
+              <Percent className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -70,7 +121,25 @@ export default function AstrologerDetailPage() {
         <SearchInput onSearch={handleSearch} placeholder="Search astrologers..." className="max-w-sm" />
       </div>
 
-      <Table columns={columns} data={(data?.data as Record<string, unknown>[]) ?? []} loading={isLoading} emptyMessage="No astrologers found" />
+      <div className="mb-4 flex gap-2">
+        {(["PENDING", "APPROVED", "REJECTED", "ALL"] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setStatusFilter(key)}
+            className={cn(
+              "rounded-full border px-4 py-2 text-sm font-medium transition-colors",
+              statusFilter === key
+                ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]"
+                : "border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]"
+            )}
+          >
+            {key === "ALL" ? "All" : key.charAt(0) + key.slice(1).toLowerCase()}
+          </button>
+        ))}
+      </div>
+
+      <Table columns={columns} data={displayedAstrologers} loading={isLoading} emptyMessage="No astrologers found" />
 
       {data && data.totalPages > 1 && (
         <div className="mt-4">
@@ -112,12 +181,34 @@ export default function AstrologerDetailPage() {
               <p className="text-xs text-[var(--text-secondary)]">Bio</p>
               <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{(viewItem.bio as string) ?? "-"}</p>
             </div>
+            {getStatus(viewItem) === "APPROVED" && viewItem.commissionPercent != null && (
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">Commission</p>
+                <p className="text-sm text-[var(--text-primary)]">{viewItem.commissionPercent as number}%</p>
+              </div>
+            )}
             <div className="flex justify-end">
               <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
             </div>
           </div>
         )}
       </Modal>
+
+      <ApproveAstrologerModal
+        astrologer={approveTarget}
+        isOpen={!!approveTarget}
+        onClose={() => setApproveTarget(null)}
+      />
+      <RejectAstrologerModal
+        astrologer={rejectTarget}
+        isOpen={!!rejectTarget}
+        onClose={() => setRejectTarget(null)}
+      />
+      <SetCommissionModal
+        astrologer={commissionTarget}
+        isOpen={!!commissionTarget}
+        onClose={() => setCommissionTarget(null)}
+      />
     </div>
   );
 }

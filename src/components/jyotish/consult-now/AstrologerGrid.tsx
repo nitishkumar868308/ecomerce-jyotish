@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { Sparkles, Zap } from "lucide-react";
 import { useAstrologers } from "@/services/jyotish/profile";
 import { AstrologerCard } from "./AstrologerCard";
 import { BookingModal } from "./BookingModal";
 
-const specializations = [
+const SPECIALIZATIONS = [
   "All",
   "Vedic Astrology",
   "Numerology",
@@ -15,11 +16,38 @@ const specializations = [
   "Horoscope Matching",
 ];
 
+/**
+ * Deterministic-per-mount shuffle. Using a random seed fixed at mount time
+ * means "refresh = new order" but the order doesn't jump while the user
+ * interacts with filters.
+ */
+function shuffle<T>(list: T[], seed: number): T[] {
+  const copy = [...list];
+  let s = seed;
+  for (let i = copy.length - 1; i > 0; i--) {
+    s = (s * 9301 + 49297) % 233280;
+    const j = Math.floor((s / 233280) * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function isPromoted(a: any): boolean {
+  // Promoted astrologers show up on top of consult-now and jyotish home:
+  //   - Explicit `isFeatured` / `promoted` flags (set manually by admin)
+  //   - OR an `activeCampaign` relation filled by the backend when their
+  //     ad-campaign is currently running in the shopper's window.
+  return Boolean(
+    a.isFeatured || a.promoted || a.activeCampaign || a.hasActiveAdCampaign,
+  );
+}
+
 export function AstrologerGrid() {
   const { data: astrologers, isLoading } = useAstrologers();
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [bookingAstrologer, setBookingAstrologer] = useState<any>(null);
+  const [seed] = useState(() => Math.floor(Math.random() * 100000));
 
   const filtered = useMemo(() => {
     let list = astrologers ?? [];
@@ -43,6 +71,22 @@ export function AstrologerGrid() {
     return list;
   }, [astrologers, filter, search]);
 
+  const { promoted, onlineRest, offline } = useMemo(() => {
+    const promoted: any[] = [];
+    const onlineRest: any[] = [];
+    const offline: any[] = [];
+    for (const a of filtered) {
+      if (isPromoted(a)) promoted.push(a);
+      else if (a.isOnline) onlineRest.push(a);
+      else offline.push(a);
+    }
+    return {
+      promoted: shuffle(promoted, seed),
+      onlineRest: shuffle(onlineRest, seed + 1),
+      offline: shuffle(offline, seed + 2),
+    };
+  }, [filtered, seed]);
+
   return (
     <>
       {/* Filters */}
@@ -55,7 +99,7 @@ export function AstrologerGrid() {
           className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[var(--jy-text-primary)] placeholder:text-[var(--jy-text-muted)] outline-none focus:border-[var(--jy-accent-gold)]/50 sm:max-w-xs"
         />
         <div className="flex flex-wrap gap-2">
-          {specializations.map((s) => (
+          {SPECIALIZATIONS.map((s) => (
             <button
               key={s}
               onClick={() => setFilter(s)}
@@ -71,7 +115,6 @@ export function AstrologerGrid() {
         </div>
       </div>
 
-      {/* Grid */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -96,15 +139,37 @@ export function AstrologerGrid() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {filtered.map((a: any) => (
-            <AstrologerCard
-              key={a._id || a.id}
-              astrologer={a}
+        <>
+          {promoted.length > 0 && (
+            <Section
+              title="Featured astrologers"
+              subtitle="Currently promoted — live and ready to consult"
+              icon={<Sparkles className="h-4 w-4" />}
+              list={promoted}
+              onBook={setBookingAstrologer}
+              highlight
+            />
+          )}
+
+          {onlineRest.length > 0 && (
+            <Section
+              title="Online now"
+              subtitle="Available for instant chat or call"
+              icon={<Zap className="h-4 w-4 text-emerald-400" />}
+              list={onlineRest}
               onBook={setBookingAstrologer}
             />
-          ))}
-        </div>
+          )}
+
+          {offline.length > 0 && (
+            <Section
+              title="More astrologers"
+              subtitle="Book a slot — they'll reach out when online"
+              list={offline}
+              onBook={setBookingAstrologer}
+            />
+          )}
+        </>
       )}
 
       {bookingAstrologer && (
@@ -114,6 +179,55 @@ export function AstrologerGrid() {
         />
       )}
     </>
+  );
+}
+
+function Section({
+  title,
+  subtitle,
+  icon,
+  list,
+  onBook,
+  highlight,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  list: any[];
+  onBook: (a: any) => void;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="mb-8">
+      <div className="mb-3 flex items-end justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-[var(--jy-accent-gold)]">
+            {icon}
+            <h2 className="text-sm font-bold uppercase tracking-wider">
+              {title}
+            </h2>
+          </div>
+          {subtitle && (
+            <p className="text-xs text-[var(--jy-text-muted)]">{subtitle}</p>
+          )}
+        </div>
+      </div>
+      <div
+        className={
+          highlight
+            ? "grid gap-4 rounded-2xl border border-[var(--jy-accent-gold)]/25 bg-[var(--jy-accent-gold)]/5 p-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+            : "grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+        }
+      >
+        {list.map((a: any) => (
+          <AstrologerCard
+            key={a._id || a.id}
+            astrologer={a}
+            onBook={onBook}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

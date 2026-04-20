@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useCategories, useSubcategories } from "@/services/categories";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ROUTES } from "@/config/routes";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Store, ChevronRight, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -72,7 +73,7 @@ export default function TheMall() {
                     <div className="relative h-12 w-12 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
                       {cat.image ? (
                         <Image
-                          src={cat.image}
+                          src={resolveAssetUrl(cat.image)}
                           alt={cat.name}
                           fill
                           className="object-cover"
@@ -137,7 +138,7 @@ export default function TheMall() {
                       <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
                         {cat.image ? (
                           <Image
-                            src={cat.image}
+                            src={resolveAssetUrl(cat.image)}
                             alt={cat.name}
                             fill
                             className="object-cover"
@@ -199,7 +200,6 @@ export default function TheMall() {
                       subcategories={activeSubcategories}
                       category={activeCategory}
                       isLoading={subcategoriesLoading}
-                      columns={3}
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -216,26 +216,17 @@ function SubcategoryGrid({
   subcategories,
   category,
   isLoading,
-  columns = 3,
 }: {
   subcategories: { id: number; name: string; slug?: string; image?: string }[];
   category?: { slug?: string; id: number; name: string } | null;
   isLoading: boolean;
-  columns?: number;
 }) {
   if (isLoading) {
     return (
-      <div
-        className={cn(
-          "grid gap-4",
-          columns === 3
-            ? "grid-cols-3"
-            : "grid-cols-2 sm:grid-cols-3"
-        )}
-      >
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="space-y-2">
-            <Skeleton className="aspect-square rounded-xl" />
+            <Skeleton className="aspect-[4/3] rounded-xl" />
             <Skeleton height={14} width="70%" />
           </div>
         ))}
@@ -257,14 +248,7 @@ function SubcategoryGrid({
   const categoryName = category?.name || String(category?.id || "");
 
   return (
-    <div
-      className={cn(
-        "grid gap-4",
-        columns === 3
-          ? "grid-cols-3"
-          : "grid-cols-2 sm:grid-cols-3"
-      )}
-    >
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
       {subcategories.map((sub, idx) => (
         <motion.div
           key={sub.id}
@@ -274,16 +258,16 @@ function SubcategoryGrid({
         >
           <Link
             href={ROUTES.SUBCATEGORY(categoryName, sub.name)}
-            className="group block"
+            className="group flex flex-col gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-2 transition-colors hover:border-[var(--accent-primary)]"
           >
-            <div className="relative aspect-square overflow-hidden rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-primary)] transition-all duration-300 group-hover:border-[var(--accent-primary)] group-hover:shadow-md">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[var(--bg-tertiary)]">
               {sub.image ? (
                 <Image
-                  src={sub.image}
+                  src={resolveAssetUrl(sub.image)}
                   alt={sub.name}
                   fill
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                  sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 22vw"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-[var(--text-faint)]">
@@ -291,7 +275,7 @@ function SubcategoryGrid({
                 </div>
               )}
             </div>
-            <h4 className="mt-2 text-sm font-medium text-[var(--text-primary)] text-center line-clamp-2 group-hover:text-[var(--accent-primary)] transition-colors">
+            <h4 className="text-sm font-medium leading-tight text-[var(--text-primary)] line-clamp-2 group-hover:text-[var(--accent-primary)] transition-colors">
               {sub.name}
             </h4>
           </Link>
@@ -314,10 +298,10 @@ function TheMallSkeleton() {
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 mt-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="space-y-2">
-              <Skeleton className="aspect-square rounded-xl" />
+              <Skeleton className="aspect-[4/3] rounded-xl" />
               <Skeleton height={14} width="70%" />
             </div>
           ))}
@@ -336,10 +320,10 @@ function TheMallSkeleton() {
         </div>
         <div className="flex-1 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-6">
           <Skeleton height={20} width="30%" className="mb-5" />
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="space-y-2">
-                <Skeleton className="aspect-square rounded-xl" />
+                <Skeleton className="aspect-[4/3] rounded-xl" />
                 <Skeleton height={14} width="70%" />
               </div>
             ))}

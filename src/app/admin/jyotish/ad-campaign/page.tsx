@@ -11,6 +11,8 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { Pagination } from "@/components/ui/Pagination";
 import { Badge } from "@/components/ui/Badge";
 import { useAdminAdCampaigns, useCreateAdCampaign } from "@/services/admin/jyotish";
+import { CampaignCalendar } from "@/components/admin/jyotish/CampaignCalendar";
+import type { AdCampaign } from "@/types/jyotish";
 import { Plus } from "lucide-react";
 
 export default function AdCampaignPage() {
@@ -80,6 +82,13 @@ export default function AdCampaignPage() {
 
       <div className="mb-4">
         <SearchInput onSearch={handleSearch} placeholder="Search campaigns..." className="max-w-sm" />
+      </div>
+
+      <div className="mb-4">
+        <CampaignCalendar
+          campaigns={((data?.data as unknown) as AdCampaign[]) ?? []}
+          dailyCap={5}
+        />
       </div>
 
       <Table columns={columns} data={(data?.data as Record<string, unknown>[]) ?? []} loading={isLoading} emptyMessage="No campaigns found" />

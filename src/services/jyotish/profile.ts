@@ -52,10 +52,26 @@ export function useCreateProfileEditRequest() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["jyotish", "profileEditRequests"] });
+      qc.invalidateQueries({ queryKey: ["jyotish", "myProfileEditRequests"] });
       toast.success("Profile edit request submitted!");
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to submit edit request");
     },
+  });
+}
+
+export function useMyProfileEditRequests(astrologerId: string | number | undefined) {
+  return useQuery({
+    queryKey: ["jyotish", "myProfileEditRequests", astrologerId],
+    queryFn: async () => {
+      const { data } = await api.get(ENDPOINTS.JYOTISH.PROFILE_EDIT.LIST, {
+        params: { astrologerId },
+      });
+      const list = data?.data ?? data ?? [];
+      return list;
+    },
+    enabled: !!astrologerId,
+    staleTime: 30 * 1000,
   });
 }

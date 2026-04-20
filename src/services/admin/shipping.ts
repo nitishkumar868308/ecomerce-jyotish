@@ -34,10 +34,35 @@ export function useCreateShippingPrice() {
   });
 }
 
+export function useUpdateShippingPrice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...payload
+    }: Partial<ShippingPrice> & { id: string }) => {
+      const { data } = await api.put<ApiResponse<ShippingPrice>>(
+        ENDPOINTS.SHIPPING_PRICING.UPDATE(id),
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "shippingPricing"] });
+      toast.success("Shipping price updated!");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error.response?.data?.message || "Failed to update shipping price",
+      );
+    },
+  });
+}
+
 export function useDeleteShippingPrice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: string | number) => {
       await api.delete(ENDPOINTS.SHIPPING_PRICING.DELETE(id));
     },
     onSuccess: () => {
@@ -45,7 +70,9 @@ export function useDeleteShippingPrice() {
       toast.success("Shipping price deleted!");
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to delete shipping price");
+      toast.error(
+        error.response?.data?.message || "Failed to delete shipping price",
+      );
     },
   });
 }
@@ -80,6 +107,31 @@ export function useCreateCountryPrice() {
   });
 }
 
+export function useUpdateCountryPrice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...payload
+    }: Partial<CountryPrice> & { id: number }) => {
+      const { data } = await api.put<ApiResponse<CountryPrice>>(
+        ENDPOINTS.COUNTRY_PRICING.UPDATE(id),
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "countryPricing"] });
+      toast.success("Country price updated!");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error.response?.data?.message || "Failed to update country price",
+      );
+    },
+  });
+}
+
 export function useDeleteCountryPrice() {
   const qc = useQueryClient();
   return useMutation({
@@ -91,7 +143,9 @@ export function useDeleteCountryPrice() {
       toast.success("Country price deleted!");
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to delete country price");
+      toast.error(
+        error.response?.data?.message || "Failed to delete country price",
+      );
     },
   });
 }

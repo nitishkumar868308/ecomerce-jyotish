@@ -1,24 +1,29 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronDown, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountryStore } from "@/stores/useCountryStore";
+import { useQuickGoStore } from "@/stores/useQuickGoStore";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { useLocationStates } from "@/services/admin/location";
+import { useCountryPricing } from "@/services/admin/shipping";
+import { useUpdateMyCountry } from "@/services/auth";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { ROUTES } from "@/config/routes";
 
-const COUNTRIES = [
-  { code: "IND", name: "India", currency: "INR", symbol: "\u20b9", flag: "\ud83c\uddee\ud83c\uddf3", exchangeRate: 1 },
-  { code: "USA", name: "United States", currency: "USD", symbol: "$", flag: "\ud83c\uddfa\ud83c\uddf8", exchangeRate: 0.012 },
-  { code: "GBR", name: "United Kingdom", currency: "GBP", symbol: "\u00a3", flag: "\ud83c\uddec\ud83c\udde7", exchangeRate: 0.0095 },
-  { code: "EUR", name: "Europe", currency: "EUR", symbol: "\u20ac", flag: "\ud83c\uddea\ud83c\uddfa", exchangeRate: 0.011 },
-  { code: "AUS", name: "Australia", currency: "AUD", symbol: "A$", flag: "\ud83c\udde6\ud83c\uddfa", exchangeRate: 0.018 },
-  { code: "CAN", name: "Canada", currency: "CAD", symbol: "C$", flag: "\ud83c\udde8\ud83c\udde6", exchangeRate: 0.016 },
-];
+const isoToEmoji = (iso2?: string): string => {
+  if (!iso2 || iso2.length !== 2) return "🌍";
+  const A = 0x1f1e6;
+  const upper = iso2.toUpperCase();
+  return String.fromCodePoint(
+    A + upper.charCodeAt(0) - 65,
+    A + upper.charCodeAt(1) - 65
+  );
+};
 
 type SiteVariant = "wizard" | "quickgo" | "jyotish";
 
@@ -28,25 +33,29 @@ function getSiteVariant(pathname: string): SiteVariant {
   return "wizard";
 }
 
-const SITE_CONFIG: Record<SiteVariant, { label: string; bg: string; text: string; logoSrc?: string; logoAlt?: string; logoHref: string }> = {
+const SITE_CONFIG: Record<SiteVariant, { label: string; bg: string; text: string; accent: string; logoSrc?: string; logoAlt?: string; logoHref: string }> = {
   wizard: {
     label: "Hecate Wizard Mall",
     bg: "bg-[var(--bg-secondary)]",
     text: "text-[var(--text-secondary)]",
+    accent: "text-[var(--text-primary)]",
     logoHref: ROUTES.HOME,
   },
   quickgo: {
     label: "Hecate QuickGo",
-    bg: "bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-950/30 dark:to-emerald-950/30",
-    text: "text-teal-700 dark:text-teal-300",
-    logoSrc: "/image/logohwm.png",
-    logoAlt: "Hecate Wizard Mall",
-    logoHref: ROUTES.HOME,
+    // Stronger teal background + white text keeps contrast healthy in both
+    // light and dark mode and fixes the "content not showing" complaint
+    // where low-contrast teal-on-teal washed out on some displays.
+    bg: "bg-gradient-to-r from-teal-600 to-emerald-600",
+    text: "text-white/90",
+    accent: "text-white",
+    logoHref: ROUTES.QUICKGO.HOME,
   },
   jyotish: {
     label: "Jyotish",
-    bg: "bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30",
-    text: "text-purple-700 dark:text-purple-300",
+    bg: "bg-gradient-to-r from-purple-700 to-violet-700",
+    text: "text-white/90",
+    accent: "text-white",
     logoSrc: "/image/logohwm.png",
     logoAlt: "Hecate Wizard Mall",
     logoHref: ROUTES.HOME,
@@ -61,13 +70,51 @@ export function Topbar({ className }: { className?: string }) {
   const { code, symbol, currency, setCountry } = useCountryStore();
   const [countryOpen, setCountryOpen] = useState(false);
   const [stateOpen, setStateOpen] = useState(false);
-  const [selectedState, setSelectedState] = useState<string>("");
+  const [citySearch, setCitySearch] = useState("");
   const countryRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<HTMLDivElement>(null);
 
   const { data: locationStates } = useLocationStates();
+  const quickGoCity = useQuickGoStore((s) => s.city);
+  const quickGoPincode = useQuickGoStore((s) => s.pincode);
+  const openQuickGoModal = useQuickGoStore((s) => s.openModal);
 
-  const currentCountry = COUNTRIES.find((c) => c.code === code) ?? COUNTRIES[0];
+  const { data: countryPricingRows = [], isLoading: isCountryPricingLoading } = useCountryPricing();
+
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const { mutate: updateMyCountry } = useUpdateMyCountry();
+  const countryCode = useCountryStore((s) => s.code);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSyncedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (lastSyncedRef.current === countryCode) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      updateMyCountry(
+        { country: countryCode },
+        { onSuccess: () => { lastSyncedRef.current = countryCode; } }
+      );
+    }, 500);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [countryCode, isLoggedIn, updateMyCountry]);
+
+  const countries = countryPricingRows
+    .filter((row) => row.active)
+    .map((row) => ({
+      code: row.code,
+      country: row.country,
+      currency: row.currency,
+      symbol: row.currencySymbol,
+      conversionRate: row.conversionRate ?? 1,
+      multiplier: row.multiplier ?? 1,
+      emoji: isoToEmoji(row.code?.slice(0, 2)),
+    }));
+
+  const currentCountry = countries.find((c) => c.code === code) ?? countries[0];
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -82,31 +129,57 @@ export function Topbar({ className }: { className?: string }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Load saved state
-  useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("selectedState") : null;
-    if (saved) setSelectedState(saved);
-  }, []);
+  // Unique cities sourced from the Location master (every row with a city).
+  // Sorted alphabetically so the dropdown is predictable even with many rows.
+  const allCities = useMemo(() => {
+    const byKey = new Map<string, { city: string; state: string }>();
+    for (const loc of locationStates ?? []) {
+      if (!loc.city) continue;
+      const key = loc.city.trim().toLowerCase();
+      if (!byKey.has(key)) {
+        byKey.set(key, { city: loc.city, state: loc.name });
+      }
+    }
+    return Array.from(byKey.values()).sort((a, b) =>
+      a.city.localeCompare(b.city),
+    );
+  }, [locationStates]);
 
-  const handleStateSelect = (stateName: string) => {
-    setSelectedState(stateName);
-    localStorage.setItem("selectedState", stateName);
+  const filteredCities = useMemo(() => {
+    const q = citySearch.trim().toLowerCase();
+    if (!q) return allCities;
+    return allCities.filter(
+      (c) =>
+        c.city.toLowerCase().includes(q) ||
+        c.state.toLowerCase().includes(q),
+    );
+  }, [allCities, citySearch]);
+
+  const handleCityPick = (cityName: string) => {
     setStateOpen(false);
+    setCitySearch("");
+    // Topbar only preselects the city — the modal drives the pincode step
+    // and persists both to the QuickGo store on confirm.
+    openQuickGoModal(cityName);
   };
 
-  const activeStates = locationStates?.filter((s) => s.isActive) ?? [];
+  const cityLabel = quickGoCity
+    ? quickGoPincode
+      ? `${quickGoCity} · ${quickGoPincode}`
+      : quickGoCity
+    : "Select City";
 
   return (
     <div
       className={cn(
-        "hidden md:flex items-center justify-between border-b border-[var(--border-primary)] py-1.5 px-4 lg:px-8 text-xs",
+        "relative hidden md:grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-[var(--border-primary)] py-1.5 px-4 lg:px-8 text-xs",
         config.bg,
         config.text,
         className,
       )}
     >
       {/* Left: Country/State selector + cross-site logo */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 min-w-0">
         {/* Show cross-site logo for quickgo and jyotish */}
         {config.logoSrc && (
           <Link href={config.logoHref} className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity">
@@ -115,26 +188,33 @@ export function Topbar({ className }: { className?: string }) {
         )}
 
         {/* Country selector (for wizard and jyotish) */}
-        {variant !== "quickgo" && (
+        {variant !== "quickgo" && !isCountryPricingLoading && countries.length > 0 && (
           <div ref={countryRef} className="relative">
             <button
               type="button"
               onClick={() => setCountryOpen(!countryOpen)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors duration-200 hover:bg-black/5 dark:hover:bg-white/5"
             >
-              <span>{currentCountry.flag}</span>
-              <span>{currentCountry.name}</span>
+              <span>{currentCountry?.emoji}</span>
+              <span>{currentCountry?.country}</span>
               <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", countryOpen && "rotate-180")} />
             </button>
 
             {countryOpen && (
               <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] py-1 shadow-[var(--shadow-lg)] animate-in fade-in slide-in-from-top-1 duration-150">
-                {COUNTRIES.map((country) => (
+                {countries.map((country) => (
                   <button
                     key={country.code}
                     type="button"
                     onClick={() => {
-                      setCountry(country);
+                      setCountry({
+                        code: country.code,
+                        name: country.country,
+                        currency: country.currency,
+                        symbol: country.symbol,
+                        conversionRate: country.conversionRate,
+                        multiplier: country.multiplier,
+                      });
                       setCountryOpen(false);
                     }}
                     className={cn(
@@ -142,8 +222,8 @@ export function Topbar({ className }: { className?: string }) {
                       country.code === code && "bg-[var(--accent-primary-light)] text-[var(--accent-primary)] font-medium",
                     )}
                   >
-                    <span>{country.flag}</span>
-                    <span>{country.name}</span>
+                    <span>{country.emoji}</span>
+                    <span>{country.country}</span>
                     <span className="ml-auto text-[var(--text-muted)]">{country.symbol} {country.currency}</span>
                   </button>
                 ))}
@@ -152,38 +232,79 @@ export function Topbar({ className }: { className?: string }) {
           </div>
         )}
 
-        {/* State selector (for quickgo only) */}
+        {/* City selector (for quickgo only) — sourced from the Location master,
+            synced with the QuickGo store, clicking a city opens the landing
+            modal with that city preselected so the shopper picks a pincode. */}
         {variant === "quickgo" && (
           <div ref={stateRef} className="relative">
             <button
               type="button"
-              onClick={() => setStateOpen(!stateOpen)}
+              onClick={() => setStateOpen((o) => !o)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors duration-200 hover:bg-black/5 dark:hover:bg-white/5"
             >
               <MapPin className="h-3 w-3" />
-              <span>{selectedState || "Select State"}</span>
-              <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", stateOpen && "rotate-180")} />
+              <span className="max-w-[220px] truncate">{cityLabel}</span>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 transition-transform duration-200",
+                  stateOpen && "rotate-180",
+                )}
+              />
             </button>
 
             {stateOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1 min-w-[200px] max-h-[300px] overflow-y-auto rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] py-1 shadow-[var(--shadow-lg)] animate-in fade-in slide-in-from-top-1 duration-150">
-                {activeStates.length > 0 ? (
-                  activeStates.map((state) => (
-                    <button
-                      key={state.id}
-                      type="button"
-                      onClick={() => handleStateSelect(state.name)}
-                      className={cn(
-                        "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-secondary)]",
-                        selectedState === state.name && "bg-[var(--accent-primary-light)] text-[var(--accent-primary)] font-medium",
-                      )}
-                    >
-                      <MapPin className="h-3 w-3 opacity-50" />
-                      <span>{state.name}</span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="px-3 py-2 text-xs text-[var(--text-muted)]">No states available</p>
+              <div className="absolute left-0 top-full z-50 mt-1 flex min-w-[240px] max-w-[320px] flex-col overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-[var(--shadow-lg)] animate-in fade-in slide-in-from-top-1 duration-150">
+                {allCities.length > 8 && (
+                  <div className="border-b border-[var(--border-primary)] px-2 py-1.5">
+                    <input
+                      type="text"
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      placeholder="Search city..."
+                      className="w-full rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
+                      autoFocus
+                    />
+                  </div>
+                )}
+
+                <div className="max-h-[280px] overflow-y-auto py-1">
+                  {filteredCities.length > 0 ? (
+                    filteredCities.map((c) => {
+                      const isActive =
+                        quickGoCity?.toLowerCase() === c.city.toLowerCase();
+                      return (
+                        <button
+                          key={`${c.city}__${c.state}`}
+                          type="button"
+                          onClick={() => handleCityPick(c.city)}
+                          className={cn(
+                            "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-secondary)]",
+                            isActive &&
+                              "bg-[var(--accent-primary-light)] text-[var(--accent-primary)] font-medium",
+                          )}
+                        >
+                          <MapPin className="h-3 w-3 opacity-50" />
+                          <span className="flex-1 truncate">{c.city}</span>
+                          <span className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                            {c.state}
+                          </span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-[var(--text-muted)]">
+                      {citySearch
+                        ? `No cities match "${citySearch}"`
+                        : "No cities available"}
+                    </p>
+                  )}
+                </div>
+
+                {quickGoCity && (
+                  <div className="border-t border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5 text-[10px] text-[var(--text-muted)]">
+                    Current: {quickGoCity}
+                    {quickGoPincode && ` · ${quickGoPincode}`}
+                  </div>
                 )}
               </div>
             )}
@@ -200,19 +321,20 @@ export function Topbar({ className }: { className?: string }) {
         )}
       </div>
 
-      {/* Center: Site name */}
-      <div className="absolute left-1/2 -translate-x-1/2 font-semibold tracking-wide text-xs">
+      {/* Center: Site name (hidden on narrow screens so it never overlaps the
+          city dropdown which can grow long). */}
+      <div
+        className={cn(
+          "hidden whitespace-nowrap text-center font-semibold tracking-wide text-xs lg:block",
+          config.accent,
+        )}
+      >
         {config.label}
       </div>
 
       {/* Right: Theme toggle */}
-      <div className="flex items-center gap-3">
-        {/* Show Jyotish logo when on QuickGo, QuickGo logo when on Jyotish */}
-        {variant === "quickgo" && (
-          <Link href={ROUTES.JYOTISH.HOME} className="text-xs font-medium opacity-70 hover:opacity-100 transition-opacity">
-            ✨ Jyotish
-          </Link>
-        )}
+      <div className="flex items-center justify-end gap-3">
+        {/* Cross-site quick link (none on quickgo) */}
         {variant === "jyotish" && (
           <Link href={ROUTES.QUICKGO.HOME} className="text-xs font-medium opacity-70 hover:opacity-100 transition-opacity">
             QuickGo

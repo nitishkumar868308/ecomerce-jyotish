@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import type { Category } from "@/types/category";
 import type { Tag } from "@/types/product";
 
@@ -441,7 +442,7 @@ function CategoryFilterItem({
           {category.image ? (
             <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-md">
               <Image
-                src={category.image}
+                src={resolveAssetUrl(category.image)}
                 alt={category.name}
                 fill
                 sizes="24px"

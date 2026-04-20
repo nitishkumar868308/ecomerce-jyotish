@@ -6,7 +6,6 @@ import Topbar from "./Topbar";
 import Header from "./Header";
 import Footer from "./Footer";
 import MobileNav from "./MobileNav";
-import AuthModal from "@/components/store/auth/AuthModal";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 
 interface DefaultPageProps {
@@ -32,8 +31,7 @@ export function DefaultPage({ children, className }: DefaultPageProps) {
       <Footer />
       <MobileNav />
 
-      {/* Global Overlays */}
-      <AuthModal />
+      {/* Global Overlays (AuthModal is mounted at root so it works on admin routes too) */}
       <CartDrawer />
     </div>
   );

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Bell, LogOut, User, ChevronDown } from "lucide-react";
+import { Menu, Bell, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/useUIStore";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -117,14 +117,6 @@ function UserDropdown() {
           </div>
 
           <div className="py-1">
-            <Link
-              href={ROUTES.ADMIN.DASHBOARD}
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-            >
-              <User className="h-4 w-4" />
-              Profile
-            </Link>
             <button
               type="button"
               onClick={() => {

@@ -3,11 +3,44 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FOOTER_NAV } from "@/config/navigation";
 import { APP_NAME } from "@/config/constants";
 import { ROUTES } from "@/config/routes";
+
+type SiteVariant = "wizard" | "quickgo" | "jyotish";
+
+function getSiteVariant(pathname: string): SiteVariant {
+  if (pathname.startsWith("/hecate-quickgo")) return "quickgo";
+  if (pathname.startsWith("/jyotish")) return "jyotish";
+  return "wizard";
+}
+
+const FOOTER_BRAND: Record<SiteVariant, { logoSrc: string; logoAlt: string; homeHref: string; tagline: string; appName: string }> = {
+  wizard: {
+    logoSrc: "/image/logohwm.png",
+    logoAlt: "Hecate Wizard Mall",
+    homeHref: ROUTES.HOME,
+    tagline: "Discover authentic products curated with care. Quality you can trust, delivered to your doorstep.",
+    appName: APP_NAME,
+  },
+  quickgo: {
+    logoSrc: "/image/hecate quickgo logo transpreant new.png",
+    logoAlt: "Hecate QuickGo",
+    homeHref: ROUTES.QUICKGO.HOME,
+    tagline: "Fast delivery of groceries & essentials in minutes. Quality you can trust, delivered in a flash.",
+    appName: "Hecate QuickGo",
+  },
+  jyotish: {
+    logoSrc: "/image/logohwm.png",
+    logoAlt: "Hecate Wizard Mall",
+    homeHref: ROUTES.HOME,
+    tagline: "Discover authentic products curated with care. Quality you can trust, delivered to your doorstep.",
+    appName: APP_NAME,
+  },
+};
 
 const SOCIAL_LINKS = [
   { label: "Facebook", icon: Facebook, href: "#" },
@@ -47,6 +80,9 @@ function FooterLinkGroup({
 
 export function Footer({ className }: { className?: string }) {
   const currentYear = new Date().getFullYear();
+  const pathname = usePathname();
+  const variant = getSiteVariant(pathname);
+  const brand = FOOTER_BRAND[variant];
 
   return (
     <footer
@@ -58,20 +94,19 @@ export function Footer({ className }: { className?: string }) {
       {/* Main footer grid */}
       <div className="mx-auto max-w-7xl px-4 py-12 lg:px-8">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
-          {/* About column - Logo instead of text */}
+          {/* About column - Logo instead of text (variant-aware) */}
           <div className="sm:col-span-2 lg:col-span-1">
-            <Link href={ROUTES.HOME} className="inline-block">
+            <Link href={brand.homeHref} className="inline-block">
               <Image
-                src="/image/logohwm.png"
-                alt="Hecate Wizard Mall"
+                src={brand.logoSrc}
+                alt={brand.logoAlt}
                 width={200}
                 height={60}
                 className="h-14 w-auto object-contain"
               />
             </Link>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-[var(--text-secondary)]">
-              Discover authentic products curated with care.
-              Quality you can trust, delivered to your doorstep.
+              {brand.tagline}
             </p>
             <div className="mt-5 flex items-center gap-2">
               {SOCIAL_LINKS.map((social) => (
@@ -131,7 +166,7 @@ export function Footer({ className }: { className?: string }) {
       {/* Bottom bar */}
       <div className="border-t border-[var(--border-primary)]">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-[var(--text-muted)] sm:flex-row lg:px-8">
-          <p>&copy; {currentYear} {APP_NAME}. All rights reserved.</p>
+          <p>&copy; {currentYear} {brand.appName}. All rights reserved.</p>
           <div className="flex items-center gap-4">
             <Link
               href={ROUTES.PRIVACY}
