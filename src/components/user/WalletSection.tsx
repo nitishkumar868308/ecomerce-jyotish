@@ -1,13 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useWalletBalance, useWalletTransactions } from "@/services/wallet";
 import { usePrice } from "@/hooks/usePrice";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatDate } from "@/lib/utils";
-import { Wallet, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { Wallet, ArrowUpRight, ArrowDownLeft, Plus } from "lucide-react";
 
 export function WalletSection() {
   const { data: balance, isLoading: balLoading } = useWalletBalance();
@@ -17,18 +17,31 @@ export function WalletSection() {
   return (
     <div className="space-y-6">
       {/* Balance Card */}
-      <Card padding="lg" className="bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-primary-hover)] border-0">
-        <div className="flex items-center gap-3 mb-2">
-          <Wallet className="h-6 w-6 text-white/80" />
-          <span className="text-sm font-medium text-white/80">Wallet Balance</span>
+      <Card padding="lg" className="relative overflow-hidden border-0 bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-primary-hover)]">
+        <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <Wallet className="h-6 w-6 text-white/80" />
+              <span className="text-sm font-medium text-white/80">
+                Wallet Balance
+              </span>
+            </div>
+            {balLoading ? (
+              <Skeleton className="h-10 w-40 bg-white/20" />
+            ) : (
+              <p className="text-3xl font-bold text-white">
+                {format(balance?.balance || 0)}
+              </p>
+            )}
+          </div>
+          <Link
+            href="/dashboard/wallet/add-money"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[var(--accent-primary)] shadow-sm transition-transform hover:scale-[1.02]"
+          >
+            <Plus className="h-4 w-4" /> Add Money
+          </Link>
         </div>
-        {balLoading ? (
-          <Skeleton className="h-10 w-40 bg-white/20" />
-        ) : (
-          <p className="text-3xl font-bold text-white">
-            {format(balance?.balance || 0)}
-          </p>
-        )}
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
       </Card>
 
       {/* Transactions */}

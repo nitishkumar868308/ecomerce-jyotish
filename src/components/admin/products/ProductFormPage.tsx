@@ -363,6 +363,77 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
     patch("variations", [...state.variations, ...additions]);
   };
 
+  // Auto-sync variations when the user adjusts attribute selections.
+  // Preserves any data the user has typed into existing variations whose
+  // combo is still in the selection; adds new combos with sensible defaults;
+  // drops combos whose attribute values were removed.
+  useEffect(() => {
+    if (!attributes) return;
+    if (mode === "edit" && !hydratedRef.current) return; // wait for hydration
+
+    const desired = generateAttributeCombos(
+      state.attributeSelections,
+      attributes,
+    );
+
+    // If no axes are selected, leave variations alone — the user may be
+    // mid-edit or building custom (blank-combo) variations manually.
+    if (desired.length === 0) return;
+
+    const desiredKeys = new Set(desired.map(comboKey));
+    const existingByKey = new Map<string, VariationRow>();
+    for (const v of state.variations) {
+      // Only consider variations that came from an attribute combo; keep
+      // hand-crafted ones (empty combo) untouched.
+      if (v.attributeCombo.length > 0) {
+        existingByKey.set(comboKey(v.attributeCombo), v);
+      }
+    }
+
+    // Have any combos been added or removed compared to current variations?
+    const sameCount =
+      desiredKeys.size === existingByKey.size &&
+      [...desiredKeys].every((k) => existingByKey.has(k));
+    if (sameCount) return;
+
+    const customRows = state.variations.filter(
+      (v) => v.attributeCombo.length === 0,
+    );
+
+    const next: VariationRow[] = desired.map((combo) => {
+      const key = comboKey(combo);
+      const kept = existingByKey.get(key);
+      if (kept) return kept;
+      return {
+        _key: nextVarKey(),
+        attributeCombo: combo,
+        variationName: comboLabel(combo) || "Variation",
+        sku: suggestVariationSku(state.sku, combo),
+        name: "",
+        price: state.price,
+        stock: state.stock,
+        MRP: state.MRP,
+        short: state.short,
+        description: state.description,
+        active: true,
+        offerId: state.offerId,
+        barCode: state.barCode,
+        bulkPricingTiers: state.bulkPricingTiers.map((t) => ({ ...t })),
+        images: state.images.map((s) => ({
+          key: nextSlotKey(),
+          file: s.file,
+          persisted: s.persisted,
+        })),
+        tagIds: state.tagIds,
+      };
+    });
+
+    patch("variations", [...next, ...customRows]);
+    // We intentionally do NOT depend on the product-level defaults so that
+    // editing them later doesn't overwrite already-customised variations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.attributeSelections, attributes, mode]);
+
   const handleAddBlank = () => {
     patch("variations", [
       ...state.variations,

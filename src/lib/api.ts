@@ -254,6 +254,11 @@ export const ENDPOINTS = {
     CHAT: {
       SESSIONS: "/jyotish/chat/sessions",
       START: "/jyotish/chat/start-session",
+      REQUEST: "/jyotish/chat/request",
+      ACCEPT: "/jyotish/chat/accept",
+      REJECT: "/jyotish/chat/reject",
+      END: "/jyotish/chat/end",
+      RESUME: "/jyotish/chat/resume",
       SESSION: (id: string | number) => `/jyotish/chat/session/${id}`,
     },
     AD_CAMPAIGN: {
@@ -306,6 +311,11 @@ export const ENDPOINTS = {
     SESSIONS: "/chat",
     MESSAGES: (id: string | number) => `/chat/${id}/messages`,
     SEND: (id: string | number) => `/chat/${id}/send`,
+  },
+  NOTIFICATIONS: {
+    LIST: "/notifications",
+    MARK_READ: (id: string | number) => `/notifications/${id}/read`,
+    MARK_ALL_READ: "/notifications/read-all",
   },
   PAYMENTS: {
     PAYU_SUCCESS: "/payu/success",

@@ -1,72 +1,37 @@
 "use client";
 
-import React from "react";
-import Link from "next/link";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useAstrologerProfile } from "@/services/jyotish/profile";
 import { AstrologerStats } from "@/components/jyotish/dashboard/AstrologerStats";
 import { SessionHistory } from "@/components/jyotish/dashboard/SessionHistory";
 import { StatusBanner } from "@/components/jyotish/dashboard/StatusBanner";
-
-const sideLinks = [
-  { href: "/jyotish/astrologer-dashboard", label: "Overview", icon: "\u2302" },
-  { href: "/jyotish/astrologer-dashboard/profile", label: "Profile", icon: "\u263A" },
-  { href: "/jyotish/astrologer-dashboard/wallet", label: "Wallet", icon: "\u20B9" },
-  { href: "/jyotish/astrologer-dashboard/ad-campaigns", label: "Ad Campaigns", icon: "\u2606" },
-];
+import { PendingChatRequests } from "@/components/jyotish/dashboard/PendingChatRequests";
 
 export default function AstrologerDashboardPage() {
   const { user } = useAuthStore();
   const { data: astrologer } = useAstrologerProfile(user?.id ?? "");
 
   return (
-    <div className="mx-auto flex max-w-7xl gap-6 px-4 py-8 sm:px-6">
-      {/* Sidebar */}
-      <aside className="hidden w-56 shrink-0 lg:block">
-        <div className="sticky top-8 space-y-1">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--jy-accent-purple)]/20 text-sm font-bold text-[var(--jy-accent-purple-light)]">
-              {user?.name?.[0] || "A"}
-            </div>
-            <div>
-              <p className="text-sm font-semibold">{user?.name || "Astrologer"}</p>
-              <p className="text-xs text-[var(--jy-text-muted)]">Dashboard</p>
-            </div>
-          </div>
-          {sideLinks.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"
-            >
-              <span>{l.icon}</span>
-              {l.label}
-            </Link>
-          ))}
-          <Link
-            href="/jyotish"
-            className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--jy-accent-gold)] hover:bg-[var(--jy-accent-gold)]/10"
-          >
-            <span>&larr;</span> Back to Jyotish
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="min-w-0 flex-1">
-        {astrologer && <StatusBanner astrologer={astrologer} />}
-        {astrologer?.status === "APPROVED" && astrologer.commissionPercent != null && (
-          <div className="mt-2 inline-flex rounded-full border border-[var(--jy-border,theme(colors.white/20))] bg-[var(--jy-bg-secondary)] px-3 py-1 text-xs text-[var(--jy-text-secondary)]">
-            Commission: {astrologer.commissionPercent}%
-          </div>
-        )}
-        <h1 className="mb-6 text-2xl font-bold">Dashboard Overview</h1>
-        <AstrologerStats />
-        <div className="mt-8">
-          <h2 className="mb-4 text-lg font-semibold">Recent Sessions</h2>
-          <SessionHistory />
+    <div className="space-y-6">
+      {astrologer && <StatusBanner astrologer={astrologer} />}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--jy-text-primary)]">
+            Welcome back, {user?.name?.split(" ")[0] ?? "Astrologer"}
+          </h1>
+          <p className="text-sm text-[var(--jy-text-muted)]">
+            Here&apos;s what&apos;s happening with your consultations today.
+          </p>
         </div>
       </div>
+      <PendingChatRequests />
+      <AstrologerStats />
+      <section>
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-[var(--jy-accent-gold)]">
+          Recent sessions
+        </h2>
+        <SessionHistory />
+      </section>
     </div>
   );
 }

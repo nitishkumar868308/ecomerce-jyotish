@@ -3,7 +3,9 @@
 import React from "react";
 import { useParams } from "next/navigation";
 import { ChatWindow } from "@/components/jyotish/chat/ChatWindow";
+import { SessionBillingOverlay } from "@/components/jyotish/chat/SessionBillingOverlay";
 import { useJyotishChatSession } from "@/services/jyotish/sessions";
+import { Loader } from "@/components/ui/Loader";
 
 export default function JyotishChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -12,10 +14,7 @@ export default function JyotishChatPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center">
-        <div className="relative h-10 w-10">
-          <div className="absolute inset-0 rounded-full border-2 border-[var(--jy-accent-purple)]/20" />
-          <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-[var(--jy-accent-gold)]" />
-        </div>
+        <Loader variant="section" message="Connecting to your astrologer..." />
       </div>
     );
   }
@@ -39,6 +38,8 @@ export default function JyotishChatPage() {
           <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--jy-online)]" />
         )}
       </div>
+
+      <SessionBillingOverlay sessionId={sessionId} session={session} />
 
       {/* Chat */}
       <ChatWindow sessionId={sessionId} />

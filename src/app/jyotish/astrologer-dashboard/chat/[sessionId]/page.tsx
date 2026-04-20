@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ChatWindow } from "@/components/jyotish/chat/ChatWindow";
 import { useJyotishChatSession } from "@/services/jyotish/sessions";
+import { Loader } from "@/components/ui/Loader";
 
 export default function AstrologerChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -13,10 +14,7 @@ export default function AstrologerChatPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center">
-        <div className="relative h-10 w-10">
-          <div className="absolute inset-0 rounded-full border-2 border-[var(--jy-accent-purple)]/20" />
-          <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-[var(--jy-accent-gold)]" />
-        </div>
+        <Loader variant="section" message="Loading session..." />
       </div>
     );
   }

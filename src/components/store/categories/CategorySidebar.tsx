@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, LayoutGrid, X, SlidersHorizontal } from "luc
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/config/routes";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import type { Category } from "@/types/category";
 
 interface CategorySidebarProps {
@@ -173,7 +174,7 @@ function CategoryItem({
           {category.image ? (
             <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-lg">
               <Image
-                src={category.image}
+                src={resolveAssetUrl(category.image)}
                 alt={category.name}
                 fill
                 sizes="28px"

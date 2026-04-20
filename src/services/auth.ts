@@ -3,6 +3,7 @@ import { api, ENDPOINTS } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
 import type { User, LoginPayload, RegisterPayload, AuthResponse } from "@/types/user";
 import type { ApiResponse } from "@/types/api";
+import { apiError } from "@/lib/apiMessage";
 import toast from "react-hot-toast";
 
 export function useMe() {

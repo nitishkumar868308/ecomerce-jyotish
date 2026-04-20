@@ -27,12 +27,18 @@ const features = [
 ];
 
 export default function QuickGoHomePage() {
+  const quickGoCity = useQuickGoStore((s) => s.city);
   const { data: categories, isLoading: catLoading } = useCategories();
-  const { data: productsData, isLoading: prodLoading } = useProducts({ limit: 8 });
+  const { data: productsData, isLoading: prodLoading } = useProducts({
+    limit: 8,
+    platform: "quickgo",
+    // Pass the shopper's selected QuickGo city through to the backend so
+    // products can be filtered to those with stock in that city warehouse.
+    city: quickGoCity || undefined,
+  });
   const { data: banners, isLoading: bannerLoading } = useBanners();
   const { data: videoStories } = useVideoStories();
   const { data: locations } = useLocationStates();
-  const quickGoCity = useQuickGoStore((s) => s.city);
   const products = filterByPlatform(productsData?.data, "quickgo");
 
   // Resolve the user's picked city back to every Location (State) row with that
@@ -238,47 +244,174 @@ export default function QuickGoHomePage() {
           </div>
         </section>
       ) : products.length > 0 ? (
-        <section className="border-t border-[var(--border-primary)] py-8 sm:py-12">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <h2 className="mb-6 text-xl font-bold sm:text-2xl text-[var(--text-primary)]">
-              Popular{" "}
-              <span className="text-[var(--accent-primary)]">Products</span>
+        <TodaysPicks products={products} />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Today's Picks — replaces the flat "Popular Products" grid with a curated
+ * hero + grid layout so a handful of products feel intentional instead of
+ * sparse. First product is the hero card (double width + gradient halo),
+ * the rest fall into a compact grid on the right.
+ */
+function TodaysPicks({ products }: { products: any[] }) {
+  if (products.length === 0) return null;
+  const [hero, ...rest] = products;
+  const heroImg = resolveAssetUrl(
+    Array.isArray(hero.image) ? hero.image[0] : hero.images?.[0] || hero.image,
+  );
+  const heroHref = `/hecate-quickgo/product/${hero.slug || hero._id || hero.id}`;
+
+  return (
+    <section className="border-t border-[var(--border-primary)] py-8 sm:py-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="mb-6 flex items-end justify-between">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-primary)]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--accent-primary)]">
+              <Zap className="h-3 w-3" /> Hand-picked
+            </span>
+            <h2 className="mt-2 text-xl font-bold sm:text-2xl text-[var(--text-primary)]">
+              Today&apos;s Picks
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 sm:gap-4">
-              {products.map((p: any) => (
+            <p className="text-sm text-[var(--text-secondary)]">
+              Fresh finds shortlisted by our team, ready in minutes.
+            </p>
+          </div>
+          <Link
+            href="/hecate-quickgo/categories"
+            className="hidden shrink-0 text-sm font-medium text-[var(--accent-primary)] hover:underline sm:inline"
+          >
+            See everything →
+          </Link>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          {/* Hero pick */}
+          <Link
+            href={heroHref}
+            className="group relative flex h-full flex-col justify-end overflow-hidden rounded-2xl border border-[var(--border-primary)] bg-gradient-to-br from-[var(--accent-primary)]/10 via-[var(--bg-card)] to-emerald-500/10 p-5 sm:p-6 min-h-[260px]"
+          >
+            <div className="absolute inset-0 -z-0 opacity-40 transition-opacity group-hover:opacity-60">
+              {heroImg ? (
+                <Image
+                  src={heroImg}
+                  alt={hero.name}
+                  fill
+                  className="object-contain p-8 transition-transform duration-500 group-hover:scale-105"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  unoptimized
+                />
+              ) : null}
+            </div>
+            <div className="relative">
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--accent-primary)] shadow-sm backdrop-blur dark:bg-black/50">
+                Editor&apos;s choice
+              </span>
+              <h3 className="mt-2 text-lg font-bold leading-tight text-[var(--text-primary)] sm:text-xl">
+                {hero.name}
+              </h3>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold text-[var(--accent-primary)]">
+                  {hero.currencySymbol || "₹"}
+                  {hero.price}
+                </span>
+                {hero.MRP && Number(hero.MRP) > Number(hero.price) && (
+                  <span className="text-sm text-[var(--text-muted)] line-through">
+                    {hero.currencySymbol || "₹"}
+                    {hero.MRP}
+                  </span>
+                )}
+              </div>
+            </div>
+          </Link>
+
+          {/* Secondary picks */}
+          <div className="grid grid-cols-2 gap-3">
+            {rest.slice(0, 4).map((p: any) => {
+              const rawImg = Array.isArray(p.image)
+                ? p.image[0]
+                : p.images?.[0] || p.image;
+              const resolved = resolveAssetUrl(rawImg);
+              return (
                 <Link
                   key={p._id || p.id}
                   href={`/hecate-quickgo/product/${p.slug || p._id || p.id}`}
-                  className="group rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-3 transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-4"
+                  className="group flex flex-col rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-3 transition-all hover:-translate-y-0.5 hover:border-[var(--accent-primary)]/40 hover:shadow-md"
                 >
-                  {(p.image?.[0] || p.images?.[0]) ? (
-                    <div className="relative mb-3 h-28 w-full overflow-hidden rounded-lg bg-[var(--bg-secondary)] sm:h-32">
+                  {resolved ? (
+                    <div className="relative mb-2 h-24 w-full overflow-hidden rounded-lg bg-[var(--bg-secondary)]">
                       <Image
-                        src={Array.isArray(p.image) ? p.image[0] : p.images?.[0] || p.image}
+                        src={resolved}
                         alt={p.name}
                         fill
-                        className="object-contain"
-                        sizes="(max-width: 640px) 50vw, 25vw"
+                        className="object-contain transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 640px) 50vw, 20vw"
+                        unoptimized
                       />
                     </div>
                   ) : (
-                    <div className="mb-3 flex h-28 w-full items-center justify-center rounded-lg bg-[var(--accent-primary)]/5 text-3xl sm:h-32">
+                    <div className="mb-2 flex h-24 w-full items-center justify-center rounded-lg bg-[var(--accent-primary)]/5 text-2xl">
                       {p.name?.[0]}
                     </div>
                   )}
-                  <h3 className="mb-1 line-clamp-2 text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] sm:text-sm">
+                  <h3 className="line-clamp-2 text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-primary)]">
                     {p.name}
                   </h3>
-                  <p className="text-sm font-bold text-[var(--accent-primary)]">
-                    {p.currencySymbol || "₹"}{p.price}
+                  <p className="mt-auto pt-1 text-sm font-bold text-[var(--accent-primary)]">
+                    {p.currencySymbol || "₹"}
+                    {p.price}
                   </p>
                 </Link>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        </section>
-      ) : null}
-    </>
+        </div>
+
+        {rest.length > 4 && (
+          <div className="mt-4 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {rest.slice(4).map((p: any) => {
+              const rawImg = Array.isArray(p.image)
+                ? p.image[0]
+                : p.images?.[0] || p.image;
+              const resolved = resolveAssetUrl(rawImg);
+              return (
+                <Link
+                  key={p._id || p.id}
+                  href={`/hecate-quickgo/product/${p.slug || p._id || p.id}`}
+                  className="group flex w-[150px] shrink-0 flex-col rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-2 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  {resolved ? (
+                    <div className="relative mb-2 h-20 w-full overflow-hidden rounded-lg bg-[var(--bg-secondary)]">
+                      <Image
+                        src={resolved}
+                        alt={p.name}
+                        fill
+                        className="object-contain"
+                        sizes="150px"
+                        unoptimized
+                      />
+                    </div>
+                  ) : (
+                    <div className="mb-2 flex h-20 w-full items-center justify-center rounded-lg bg-[var(--accent-primary)]/5">
+                      {p.name?.[0]}
+                    </div>
+                  )}
+                  <h4 className="line-clamp-2 text-[11px] font-medium leading-tight text-[var(--text-primary)]">
+                    {p.name}
+                  </h4>
+                  <p className="mt-1 text-xs font-bold text-[var(--accent-primary)]">
+                    {p.currencySymbol || "₹"}
+                    {p.price}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

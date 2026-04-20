@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import DefaultPage from "@/components/layout/DefaultPage";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { api, ENDPOINTS } from "@/lib/api";
+import { useAuthStore } from "@/stores/useAuthStore";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Mail, Phone, MapPin, Clock, Send, MessageSquare, Sparkles } from "lucide-react";
@@ -58,6 +60,26 @@ export default function ContactPage() {
   const [form, setForm] = useState<ContactForm>(INITIAL_VALUES);
   const [errors, setErrors] = useState<Partial<ContactForm>>({});
   const [submitting, setSubmitting] = useState(false);
+  const { user, isLoggedIn } = useAuthStore();
+  const pathname = usePathname();
+
+  // Prefill identity for logged-in users. We key on the stored email so a
+  // later re-login with a different account updates the form even if the
+  // user hasn't refreshed.
+  useEffect(() => {
+    if (!isLoggedIn || !user) return;
+    setForm((prev) => ({
+      ...prev,
+      name: prev.name || user.name || "",
+      email: prev.email || user.email || "",
+    }));
+  }, [isLoggedIn, user?.email, user?.name]);
+
+  const platform = pathname.startsWith("/hecate-quickgo")
+    ? "quickgo"
+    : pathname.startsWith("/jyotish")
+      ? "jyotish"
+      : "website";
 
   function validate(): boolean {
     const e: Partial<ContactForm> = {};
@@ -76,9 +98,15 @@ export default function ContactPage() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await api.post(ENDPOINTS.CONTACT.SEND, form);
+      await api.post(ENDPOINTS.CONTACT.SEND, { ...form, platform });
       toast.success("Message sent successfully!");
-      setForm(INITIAL_VALUES);
+      setForm({
+        ...INITIAL_VALUES,
+        // Keep identity so the same user can send a follow-up without
+        // retyping name/email.
+        name: isLoggedIn ? user?.name ?? "" : "",
+        email: isLoggedIn ? user?.email ?? "" : "",
+      });
     } catch {
       toast.error("Failed to send message. Please try again.");
     } finally {

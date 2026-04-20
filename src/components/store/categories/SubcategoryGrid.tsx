@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { ROUTES } from "@/config/routes";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import type { Subcategory } from "@/types/category";
 
 interface SubcategoryGridProps {
@@ -35,7 +36,7 @@ function SubcategoryCard({ subcategory }: { subcategory: Subcategory }) {
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[var(--bg-secondary)] sm:aspect-[3/2] sm:h-auto sm:w-full">
             {subcategory.image ? (
               <Image
-                src={subcategory.image}
+                src={resolveAssetUrl(subcategory.image)}
                 alt={subcategory.name}
                 fill
                 sizes="(max-width: 640px) 56px, (max-width: 1024px) 25vw, 20vw"

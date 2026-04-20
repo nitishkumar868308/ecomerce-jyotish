@@ -33,23 +33,29 @@ function getSiteVariant(pathname: string): SiteVariant {
   return "wizard";
 }
 
-const SITE_CONFIG: Record<SiteVariant, { label: string; bg: string; text: string; logoSrc?: string; logoAlt?: string; logoHref: string }> = {
+const SITE_CONFIG: Record<SiteVariant, { label: string; bg: string; text: string; accent: string; logoSrc?: string; logoAlt?: string; logoHref: string }> = {
   wizard: {
     label: "Hecate Wizard Mall",
     bg: "bg-[var(--bg-secondary)]",
     text: "text-[var(--text-secondary)]",
+    accent: "text-[var(--text-primary)]",
     logoHref: ROUTES.HOME,
   },
   quickgo: {
     label: "Hecate QuickGo",
-    bg: "bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-950/30 dark:to-emerald-950/30",
-    text: "text-teal-700 dark:text-teal-300",
+    // Stronger teal background + white text keeps contrast healthy in both
+    // light and dark mode and fixes the "content not showing" complaint
+    // where low-contrast teal-on-teal washed out on some displays.
+    bg: "bg-gradient-to-r from-teal-600 to-emerald-600",
+    text: "text-white/90",
+    accent: "text-white",
     logoHref: ROUTES.QUICKGO.HOME,
   },
   jyotish: {
     label: "Jyotish",
-    bg: "bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30",
-    text: "text-purple-700 dark:text-purple-300",
+    bg: "bg-gradient-to-r from-purple-700 to-violet-700",
+    text: "text-white/90",
+    accent: "text-white",
     logoSrc: "/image/logohwm.png",
     logoAlt: "Hecate Wizard Mall",
     logoHref: ROUTES.HOME,
@@ -166,14 +172,14 @@ export function Topbar({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "hidden md:flex items-center justify-between border-b border-[var(--border-primary)] py-1.5 px-4 lg:px-8 text-xs",
+        "relative hidden md:grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-[var(--border-primary)] py-1.5 px-4 lg:px-8 text-xs",
         config.bg,
         config.text,
         className,
       )}
     >
       {/* Left: Country/State selector + cross-site logo */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 min-w-0">
         {/* Show cross-site logo for quickgo and jyotish */}
         {config.logoSrc && (
           <Link href={config.logoHref} className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity">
@@ -315,13 +321,19 @@ export function Topbar({ className }: { className?: string }) {
         )}
       </div>
 
-      {/* Center: Site name */}
-      <div className="absolute left-1/2 -translate-x-1/2 font-semibold tracking-wide text-xs">
+      {/* Center: Site name (hidden on narrow screens so it never overlaps the
+          city dropdown which can grow long). */}
+      <div
+        className={cn(
+          "hidden whitespace-nowrap text-center font-semibold tracking-wide text-xs lg:block",
+          config.accent,
+        )}
+      >
         {config.label}
       </div>
 
       {/* Right: Theme toggle */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3">
         {/* Cross-site quick link (none on quickgo) */}
         {variant === "jyotish" && (
           <Link href={ROUTES.QUICKGO.HOME} className="text-xs font-medium opacity-70 hover:opacity-100 transition-opacity">

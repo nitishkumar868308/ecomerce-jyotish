@@ -1,10 +1,11 @@
 "use client";
 
 import { usePrice } from "@/hooks/usePrice";
-import type { Product } from "@/types/product";
+import type { Product, ProductVariation } from "@/types/product";
 
 interface ProductDetailsTableProps {
   product: Product;
+  selectedVariation?: ProductVariation | null;
 }
 
 interface Row {
@@ -12,33 +13,79 @@ interface Row {
   value: string;
 }
 
-export function ProductDetailsTable({ product }: ProductDetailsTableProps) {
+type DimBag = Record<string, unknown> | null | undefined;
+
+/** Pick the first non-empty value for any of the provided keys on a bag. */
+function pickDim(bag: DimBag, keys: string[]): string | number | undefined {
+  if (!bag) return undefined;
+  for (const k of keys) {
+    const v = (bag as Record<string, unknown>)[k];
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return v as string | number;
+    }
+  }
+  return undefined;
+}
+
+/** Format dimension value with unit (default cm). Falls back to "-" for missing. */
+function dimStr(value: string | number | undefined, unit = "cm"): string {
+  if (value === undefined || value === null || String(value).trim() === "") return "-";
+  const num = Number(value);
+  return Number.isFinite(num) ? `${num} ${unit}` : String(value);
+}
+
+export function ProductDetailsTable({
+  product,
+  selectedVariation,
+}: ProductDetailsTableProps) {
   const { format } = usePrice();
+
+  // Variation dimension/weight take precedence; fall back to product-level.
+  const variationDim = (selectedVariation?.dimension ?? null) as DimBag;
+  const productDim = (product.dimension ?? null) as DimBag;
+
+  const length =
+    pickDim(variationDim, ["length", "l", "len"]) ??
+    pickDim(productDim, ["length", "l", "len"]) ??
+    (product as any).length;
+  const breadth =
+    pickDim(variationDim, ["breadth", "width", "b", "w"]) ??
+    pickDim(productDim, ["breadth", "width", "b", "w"]) ??
+    ((product as any).breadth ?? (product as any).width);
+  const height =
+    pickDim(variationDim, ["height", "h"]) ??
+    pickDim(productDim, ["height", "h"]) ??
+    (product as any).height;
+  const variationWeight =
+    pickDim(variationDim, ["weight", "wt"]) ??
+    (selectedVariation as { weight?: number } | null | undefined)?.weight;
+  const weight = variationWeight ?? product.weight;
+
+  const activeSku = selectedVariation?.sku || product.sku;
+  const activePrice = selectedVariation?.price ?? product.price;
 
   const rows: Row[] = [];
   if (product.name) rows.push({ label: "Name", value: product.name });
-  if (product.price) rows.push({ label: "Price", value: format(product.price) });
-  if (product.sku) rows.push({ label: "SKU", value: String(product.sku) });
+  if (activePrice) rows.push({ label: "Price", value: format(activePrice) });
+  if (activeSku) rows.push({ label: "SKU", value: String(activeSku) });
 
-  // `length`, `width`, `breadth`, `height` are not declared on Product type — keep casts
-  const dim = {
-    length: (product as any).length,
-    width: (product as any).width ?? (product as any).breadth,
-    height: (product as any).height,
-  };
-  if (dim.length || dim.width || dim.height) {
+  if (length || breadth || height) {
     rows.push({
-      label: "Dimensions (L × W × H)",
-      value: `${dim.length ?? "-"} × ${dim.width ?? "-"} × ${dim.height ?? "-"}`,
+      label: "Dimensions (L × B × H)",
+      value: `${dimStr(length)} × ${dimStr(breadth)} × ${dimStr(height)}`,
     });
   } else if (product.dimensions) {
     rows.push({ label: "Dimensions", value: product.dimensions });
   }
 
-  // `weight` is typed as `number` on Product
-  if (product.weight) rows.push({ label: "Weight", value: String(product.weight) });
+  if (weight !== undefined && weight !== null && String(weight).trim() !== "") {
+    const num = Number(weight);
+    rows.push({
+      label: "Weight",
+      value: Number.isFinite(num) ? `${num} g` : String(weight),
+    });
+  }
 
-  // `tags` is typed as `Tag[]` on Product
   if (product.tags && product.tags.length > 0) {
     rows.push({
       label: "Tags",
@@ -46,7 +93,6 @@ export function ProductDetailsTable({ product }: ProductDetailsTableProps) {
     });
   }
 
-  // `attributes` is typed as `ProductAttribute[]` (id, name, values[]) on Product
   if (product.attributes && product.attributes.length > 0) {
     for (const attr of product.attributes) {
       if (!attr.values || attr.values.length === 0) continue;

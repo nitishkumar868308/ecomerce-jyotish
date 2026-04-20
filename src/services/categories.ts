@@ -26,10 +26,12 @@ export function useCategory(id: string | number) {
   });
 }
 
+export type CategoryPayload = Partial<Category> & { stateIds?: number[] };
+
 export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: FormData | Partial<Category>) => {
+    mutationFn: async (payload: FormData | CategoryPayload) => {
       const { data } = await api.post(ENDPOINTS.CATEGORIES.LIST, payload);
       return data;
     },
@@ -46,7 +48,10 @@ export function useCreateCategory() {
 export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...payload }: Partial<Category> & { id: number }) => {
+    mutationFn: async ({
+      id,
+      ...payload
+    }: CategoryPayload & { id: number }) => {
       const { data } = await api.put(ENDPOINTS.CATEGORIES.SINGLE(id), payload);
       return data;
     },
@@ -90,10 +95,14 @@ export function useSubcategories(categoryId?: number) {
   });
 }
 
+export type SubcategoryPayload = Partial<Subcategory> & {
+  stateIds?: number[];
+};
+
 export function useCreateSubcategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: FormData | Partial<Subcategory>) => {
+    mutationFn: async (payload: FormData | SubcategoryPayload) => {
       const { data } = await api.post(ENDPOINTS.SUBCATEGORIES.LIST, payload);
       return data;
     },
@@ -110,7 +119,10 @@ export function useCreateSubcategory() {
 export function useUpdateSubcategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...payload }: Partial<Subcategory> & { id: number }) => {
+    mutationFn: async ({
+      id,
+      ...payload
+    }: SubcategoryPayload & { id: number }) => {
       const { data } = await api.put(ENDPOINTS.SUBCATEGORIES.SINGLE(id), payload);
       return data;
     },

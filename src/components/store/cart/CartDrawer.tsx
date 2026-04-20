@@ -47,7 +47,21 @@ export function CartDrawer({ className }: { className?: string }) {
   }, [isOpen]);
 
   const { format } = usePrice();
-  const items = isLoggedIn ? (serverItems ?? []) : [];
+  const allItems = isLoggedIn ? (serverItems ?? []) : [];
+
+  // Filter items by the active tab so users don't see wizard items in the
+  // QuickGo bucket (and vice versa). Legacy items with no platform default
+  // to the wizard bucket — wizard is the established product surface.
+  const itemsForTab = (tab: StorefrontTab) =>
+    allItems.filter((item) => {
+      const p = String(item.purchasePlatform ?? "").toLowerCase();
+      if (tab === "quickgo") return p === "quickgo" || p === "hecate-quickgo";
+      return p === "" || p === "wizard" || p === "website";
+    });
+
+  const items = itemsForTab(activeTab);
+  const wizardCount = itemsForTab("wizard").length;
+  const quickgoCount = itemsForTab("quickgo").length;
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
   const itemCount = items.length;
 
@@ -55,8 +69,12 @@ export function CartDrawer({ className }: { className?: string }) {
   const showEmpty = !showLoading && items.length === 0;
   const showItems = !showLoading && items.length > 0;
 
+  // Carry the originating tab forward so checkout picks up the same platform
+  // context (see item 26 in the brief).
   const checkoutRoute =
-    activeTab === "quickgo" ? ROUTES.QUICKGO.CHECKOUT : ROUTES.CHECKOUT;
+    activeTab === "quickgo"
+      ? `${ROUTES.QUICKGO.CHECKOUT}?platform=quickgo`
+      : `${ROUTES.CHECKOUT}?platform=wizard`;
 
   return (
     <AnimatePresence>
@@ -102,10 +120,40 @@ export function CartDrawer({ className }: { className?: string }) {
                 </button>
               </div>
 
-              {/* Tabs */}
+              {/* Tabs — order is context-aware: the tab for the surface the
+                  user opened the drawer on comes first. */}
               <div className="flex gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
-                <TabBtn active={activeTab === "wizard"} onClick={() => setActiveTab("wizard")} icon={<ShoppingCart className="h-3.5 w-3.5" />} label="Wizard Mall" />
-                <TabBtn active={activeTab === "quickgo"} onClick={() => setActiveTab("quickgo")} icon={<Zap className="h-3.5 w-3.5" />} label="QuickGo" />
+                {defaultTab === "quickgo" ? (
+                  <>
+                    <TabBtn
+                      active={activeTab === "quickgo"}
+                      onClick={() => setActiveTab("quickgo")}
+                      icon={<Zap className="h-3.5 w-3.5" />}
+                      label={`QuickGo${quickgoCount ? ` (${quickgoCount})` : ""}`}
+                    />
+                    <TabBtn
+                      active={activeTab === "wizard"}
+                      onClick={() => setActiveTab("wizard")}
+                      icon={<ShoppingCart className="h-3.5 w-3.5" />}
+                      label={`Wizard Mall${wizardCount ? ` (${wizardCount})` : ""}`}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <TabBtn
+                      active={activeTab === "wizard"}
+                      onClick={() => setActiveTab("wizard")}
+                      icon={<ShoppingCart className="h-3.5 w-3.5" />}
+                      label={`Wizard Mall${wizardCount ? ` (${wizardCount})` : ""}`}
+                    />
+                    <TabBtn
+                      active={activeTab === "quickgo"}
+                      onClick={() => setActiveTab("quickgo")}
+                      icon={<Zap className="h-3.5 w-3.5" />}
+                      label={`QuickGo${quickgoCount ? ` (${quickgoCount})` : ""}`}
+                    />
+                  </>
+                )}
               </div>
             </div>
 

@@ -5,6 +5,7 @@ import { useChatMessages, useSendMessage } from "@/services/chat";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
+import { Loader } from "@/components/ui/Loader";
 
 interface ChatWindowProps {
   sessionId: string;
@@ -29,10 +30,7 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="relative h-8 w-8">
-          <div className="absolute inset-0 rounded-full border-2 border-[var(--jy-accent-purple)]/20" />
-          <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-[var(--jy-accent-gold)]" />
-        </div>
+        <Loader variant="section" />
       </div>
     );
   }

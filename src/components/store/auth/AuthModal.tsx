@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { X, Mail, Lock, User, ArrowLeft, Eye, EyeOff, Sparkles, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useUIStore } from "@/stores/useUIStore";
 import { useLogin, useRegister, useForgotPassword, useGoogleLogin } from "@/services/auth";
 import { API_CONFIG } from "@/lib/api";
 import { ROUTES } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import type { AuthResponse } from "@/types/user";
 
 type AuthView = "login" | "register" | "forgot-password";
 
@@ -34,6 +36,7 @@ const forgotPasswordSchema = Yup.object({
 export default function AuthModal() {
   const { activeModal, closeModal } = useUIStore();
   const isOpen = activeModal === "auth";
+  const router = useRouter();
 
   const [view, setView] = useState<AuthView>("login");
   const [showPassword, setShowPassword] = useState(false);
@@ -43,6 +46,14 @@ export default function AuthModal() {
   const registerMutation = useRegister();
   const forgotPasswordMutation = useForgotPassword();
   const googleLoginMutation = useGoogleLogin();
+
+  // Route admins to the admin panel after auth; regular users stay put.
+  const redirectByRole = (data: AuthResponse) => {
+    const role = data.user?.role;
+    if (role === "ADMIN" || role === "SUPER_ADMIN") {
+      router.push(ROUTES.ADMIN.DASHBOARD);
+    }
+  };
 
   // Animation mount
   useEffect(() => {
@@ -84,10 +95,14 @@ export default function AuthModal() {
     (response: { credential: string }) => {
       if (response.credential) {
         googleLoginMutation.mutate(response.credential, {
-          onSuccess: () => closeModal(),
+          onSuccess: (data) => {
+            redirectByRole(data);
+            closeModal();
+          },
         });
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [googleLoginMutation, closeModal]
   );
 
@@ -133,7 +148,8 @@ export default function AuthModal() {
     validationSchema: loginSchema,
     onSubmit: (values) => {
       loginMutation.mutate(values, {
-        onSuccess: () => {
+        onSuccess: (data) => {
+          redirectByRole(data);
           closeModal();
           loginForm.resetForm();
         },
@@ -146,8 +162,11 @@ export default function AuthModal() {
     initialValues: { name: "", email: "", password: "", confirmPassword: "" },
     validationSchema: registerSchema,
     onSubmit: (values) => {
-      registerMutation.mutate(values, {
-        onSuccess: () => {
+      // Backend rejects unknown fields — send only what the API accepts.
+      const { confirmPassword: _confirmPassword, ...payload } = values;
+      registerMutation.mutate(payload, {
+        onSuccess: (data) => {
+          redirectByRole(data);
           closeModal();
           registerForm.resetForm();
         },

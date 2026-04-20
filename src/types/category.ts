@@ -12,6 +12,8 @@ export interface Category {
   updatedAt: string;
   subcategories?: Subcategory[];
   countryTaxes?: CountryTax[];
+  /** Linked location rows (see State master in backend). */
+  states?: Array<{ id: number; name: string; city?: string | null }>;
 }
 
 export interface Subcategory {
@@ -27,6 +29,8 @@ export interface Subcategory {
   createdAt: string;
   updatedAt: string;
   category?: { id: number; name: string };
+  /** Linked location rows (see State master in backend). */
+  states?: Array<{ id: number; name: string; city?: string | null }>;
 }
 
 export interface CountryTax {

@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ENDPOINTS } from "@/lib/api";
-import type { WarehouseLocation } from "@/types/warehouse";
+import type {
+  WarehouseLocation,
+  WarehousePublicCity,
+} from "@/types/warehouse";
 import type { ApiResponse } from "@/types/api";
 import toast from "react-hot-toast";
 
@@ -10,10 +13,85 @@ export function useWarehouseLocations() {
   return useQuery({
     queryKey: ["admin", "warehouses"],
     queryFn: async () => {
-      const { data } = await api.get<ApiResponse<WarehouseLocation[]>>(ENDPOINTS.WAREHOUSE.LIST);
+      const { data } = await api.get<ApiResponse<WarehouseLocation[]>>(
+        ENDPOINTS.WAREHOUSE.LIST,
+      );
       return data.data;
     },
     staleTime: 60 * 1000,
+  });
+}
+
+const PINCODE_RE = /^\d{6}$/;
+
+/**
+ * Collapse a flat warehouse list into the city-bucketed shape the storefront
+ * expects — dedupes pincodes per (city, state) and skips inactive/deleted
+ * rows. Used as a fallback when the dedicated public-cities endpoint isn't
+ * deployed on the backend.
+ */
+function aggregatePublicCities(
+  list: WarehouseLocation[],
+): WarehousePublicCity[] {
+  const bucket = new Map<string, WarehousePublicCity>();
+  for (const w of list) {
+    if (!w.active || w.deleted || !w.city) continue;
+    const pincodes = (w.pincode || "")
+      .split(/[^0-9]+/)
+      .map((t) => t.trim())
+      .filter((t) => PINCODE_RE.test(t));
+    const key = `${w.city.toLowerCase()}__${w.state.toLowerCase()}`;
+    const existing = bucket.get(key);
+    if (existing) {
+      const seen = new Set(existing.pincodes);
+      for (const p of pincodes) {
+        if (!seen.has(p)) {
+          existing.pincodes.push(p);
+          seen.add(p);
+        }
+      }
+    } else {
+      bucket.set(key, {
+        city: w.city,
+        state: w.state,
+        cityRefId: w.cityRefId ?? null,
+        pincodes: Array.from(new Set(pincodes)),
+      });
+    }
+  }
+  return Array.from(bucket.values());
+}
+
+/**
+ * Public lookup used by the storefront (QuickGo landing modal etc.) —
+ * returns active warehouses grouped by city along with pincodes.
+ *
+ * Tries the dedicated `/warehouse/public-cities` endpoint first; falls back
+ * to aggregating the main warehouse list client-side so the storefront keeps
+ * working when the backend hasn't exposed the public endpoint yet.
+ */
+export function useWarehousePublicCities() {
+  return useQuery({
+    queryKey: ["warehouse", "publicCities"],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<ApiResponse<WarehousePublicCity[]>>(
+          ENDPOINTS.WAREHOUSE.PUBLIC_CITIES,
+        );
+        if (Array.isArray(data?.data) && data.data.length > 0) {
+          return data.data;
+        }
+        // Empty or malformed response — fall through to aggregation.
+      } catch {
+        // Swallow and try the fallback.
+      }
+      const { data } = await api.get<ApiResponse<WarehouseLocation[]>>(
+        ENDPOINTS.WAREHOUSE.LIST,
+      );
+      return aggregatePublicCities(data.data ?? []);
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }
 
@@ -21,15 +99,47 @@ export function useCreateWarehouse() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Partial<WarehouseLocation>) => {
-      const { data } = await api.post<ApiResponse<WarehouseLocation>>(ENDPOINTS.WAREHOUSE.CREATE, payload);
-      return data;
+      const { data } = await api.post<ApiResponse<WarehouseLocation>>(
+        ENDPOINTS.WAREHOUSE.CREATE,
+        payload,
+      );
+      return data.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "warehouses"] });
+      qc.invalidateQueries({ queryKey: ["warehouse", "publicCities"] });
       toast.success("Warehouse created!");
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to create warehouse");
+      toast.error(
+        error.response?.data?.message || "Failed to create warehouse",
+      );
+    },
+  });
+}
+
+export function useUpdateWarehouse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...payload
+    }: Partial<WarehouseLocation> & { id: number }) => {
+      const { data } = await api.put<ApiResponse<WarehouseLocation>>(
+        ENDPOINTS.WAREHOUSE.UPDATE(id),
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "warehouses"] });
+      qc.invalidateQueries({ queryKey: ["warehouse", "publicCities"] });
+      toast.success("Warehouse updated!");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error.response?.data?.message || "Failed to update warehouse",
+      );
     },
   });
 }
@@ -42,10 +152,13 @@ export function useDeleteWarehouse() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "warehouses"] });
+      qc.invalidateQueries({ queryKey: ["warehouse", "publicCities"] });
       toast.success("Warehouse deleted!");
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to delete warehouse");
+      toast.error(
+        error.response?.data?.message || "Failed to delete warehouse",
+      );
     },
   });
 }

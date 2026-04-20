@@ -36,7 +36,31 @@ const EMPTY_ADDRESS_FORM = {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { data: cartItems, isLoading: cartLoading } = useCart();
+  const searchPlatform =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("platform")?.toLowerCase()
+      : undefined;
+  // The URL query drives the theme + which cart subset is rendered so the
+  // user checks out exactly what they saw in the drawer.
+  const originPlatform: "wizard" | "quickgo" =
+    searchPlatform === "quickgo" ? "quickgo" : "wizard";
+  const { data: cartItemsRaw, isLoading: cartLoading } = useCart();
+  const cartItems = (cartItemsRaw ?? []).filter((item) => {
+    const p = String(item.purchasePlatform ?? "").toLowerCase();
+    if (originPlatform === "quickgo")
+      return p === "quickgo" || p === "hecate-quickgo";
+    return p === "" || p === "wizard" || p === "website";
+  });
+  // Items checkable on/off; all selected by default.
+  const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
+  const toggleItemSelected = (id: string) => {
+    setDeselectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   const { code: countryCode } = useCountryStore();
   const { format } = usePrice();
   const { data: shippingOptions } = useShippingByCountry(countryCode);
@@ -98,14 +122,28 @@ export default function CheckoutPage() {
   const [note, setNote] = useState("");
   const [donationAmount, setDonationAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"PayU" | "PayGlocal">(
-    countryCode === "IND" ? "PayU" : "PayGlocal"
+    countryCode === "IND" ? "PayU" : "PayGlocal",
   );
+  // The brief requires payment gateway selection to follow the BILLING
+  // address country, not the browsing country. India -> PayU, else PayGlocal.
+  // We re-derive inside an effect so a user who changes billing country
+  // doesn't get charged through the wrong rail.
+  useEffect(() => {
+    const billingCountry = (() => {
+      const userCountry = (user as any)?.country;
+      const addrCountry = (addresses ?? []).find((a) => a.isDefault)?.country;
+      return String(userCountry || addrCountry || "India");
+    })();
+    const isIndia =
+      /india/i.test(billingCountry) || billingCountry.toUpperCase() === "IND";
+    setPaymentMethod(isIndia ? "PayU" : "PayGlocal");
+  }, [user, addresses]);
   const [placing, setPlacing] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     promo: false, note: false, donate: false,
   });
 
-  const items = cartItems ?? [];
+  const items = (cartItems ?? []).filter((i) => !deselectedIds.has(i.id));
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
 
   const shippingPrice = useMemo(() => {
@@ -292,7 +330,17 @@ export default function CheckoutPage() {
   return (
     <DefaultPage>
       <PrivateRoute>
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div
+          data-checkout-platform={originPlatform}
+          className={cn(
+            "mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8",
+            // When checkout was initiated from QuickGo, the teal accent tokens
+            // layered in hecate-quickgo/layout.tsx won't apply here (we're
+            // under the default store route), so tag the wrapper so targeted
+            // styles + the theme toggle can key off it in future passes.
+            originPlatform === "quickgo" && "checkout-theme-quickgo",
+          )}
+        >
           <h1 className="text-2xl font-bold text-[var(--text-primary)] sm:text-3xl mb-6">Checkout</h1>
 
           {items.length === 0 ? (
@@ -320,11 +368,61 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Cart Items (grouped by product) */}
+                {/* Cart Items (grouped by product). Checkboxes let the user
+                    skip individual items for this order without removing them
+                    from the cart — all items default to selected. */}
+                {deselectedIds.size > 0 && (
+                  <div className="mb-2 flex items-center justify-between rounded-lg bg-[var(--accent-primary)]/5 px-3 py-2 text-xs text-[var(--accent-primary)]">
+                    <span>
+                      {deselectedIds.size} item(s) skipped — they&apos;ll stay
+                      in your cart.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDeselectedIds(new Set())}
+                      className="font-semibold hover:underline"
+                    >
+                      Select all
+                    </button>
+                  </div>
+                )}
                 <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] divide-y divide-[var(--border-primary)]">
-                  {groupCheckoutItems(items).map((group) => (
-                    <CheckoutGroupRow key={group.key} group={group} />
-                  ))}
+                  {groupCheckoutItems(cartItems ?? []).map((group) => {
+                    const groupIds = group.items.map((i) => i.id);
+                    const allDeselected = groupIds.every((id) =>
+                      deselectedIds.has(id),
+                    );
+                    return (
+                      <div
+                        key={group.key}
+                        className={cn(
+                          "transition-opacity",
+                          allDeselected && "opacity-50",
+                        )}
+                      >
+                        <label className="flex cursor-pointer items-center gap-3 px-4 pt-3 text-xs text-[var(--text-secondary)]">
+                          <input
+                            type="checkbox"
+                            checked={!allDeselected}
+                            onChange={() => {
+                              setDeselectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (allDeselected) {
+                                  for (const id of groupIds) next.delete(id);
+                                } else {
+                                  for (const id of groupIds) next.add(id);
+                                }
+                                return next;
+                              });
+                            }}
+                            className="h-4 w-4 rounded border-[var(--border-primary)] text-[var(--accent-primary)]"
+                          />
+                          <span>Include in this order</span>
+                        </label>
+                        <CheckoutGroupRow group={group} />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

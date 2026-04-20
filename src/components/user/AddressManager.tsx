@@ -19,7 +19,18 @@ export function AddressManager() {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [editAddress, setEditAddress] = useState<Address | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", addressLine1: "", addressLine2: "", city: "", state: "", pincode: "", country: "India" });
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    pincode: "",
+    country: "India",
+    isDefault: false,
+  });
 
   const { data: addresses, isLoading } = useQuery({
     queryKey: ["addresses"],
@@ -53,13 +64,35 @@ export function AddressManager() {
 
   const openCreate = () => {
     setEditAddress(null);
-    setForm({ name: "", phone: "", addressLine1: "", addressLine2: "", city: "", state: "", pincode: "", country: "India" });
+    setForm({
+      name: "",
+      phone: "",
+      email: "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      state: "",
+      pincode: "",
+      country: "India",
+      isDefault: !addresses || addresses.length === 0,
+    });
     setModalOpen(true);
   };
 
   const openEdit = (addr: Address) => {
     setEditAddress(addr);
-    setForm({ name: addr.name, phone: addr.phone, addressLine1: addr.addressLine1, addressLine2: addr.addressLine2 || "", city: addr.city, state: addr.state, pincode: addr.pincode, country: addr.country });
+    setForm({
+      name: addr.name,
+      phone: addr.phone,
+      email: addr.email ?? "",
+      addressLine1: addr.addressLine1,
+      addressLine2: addr.addressLine2 || "",
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+      country: addr.country,
+      isDefault: Boolean(addr.isDefault),
+    });
     setModalOpen(true);
   };
 
@@ -99,8 +132,11 @@ export function AddressManager() {
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editAddress ? "Edit Address" : "Add Address"}>
         <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-4 p-1">
-          <Input label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required fullWidth />
-          <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required fullWidth />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+          </div>
+          <Input label="Email (for order updates)" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} fullWidth />
           <Input label="Address Line 1" value={form.addressLine1} onChange={(e) => setForm({ ...form, addressLine1: e.target.value })} required fullWidth />
           <Input label="Address Line 2" value={form.addressLine2} onChange={(e) => setForm({ ...form, addressLine2: e.target.value })} fullWidth />
           <div className="grid grid-cols-2 gap-3">
@@ -111,6 +147,15 @@ export function AddressManager() {
             <Input label="Pincode" value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value })} required />
             <Input label="Country" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} required />
           </div>
+          <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={form.isDefault}
+              onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
+              className="h-4 w-4 rounded border-[var(--border-primary)] text-[var(--accent-primary)]"
+            />
+            Use as default shipping address
+          </label>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button type="submit" loading={saveMutation.isPending}>{editAddress ? "Update" : "Add"} Address</Button>

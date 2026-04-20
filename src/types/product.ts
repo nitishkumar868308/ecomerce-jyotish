@@ -122,4 +122,11 @@ export interface ProductFilters {
   page?: number;
   limit?: number;
   letter?: string;
+  /** Platform the request originates from — wizard | quickgo | jyotish. */
+  platform?: string;
+  /**
+   * City code for QuickGo: backend filters to products that have stock in
+   * this city's warehouse (via WarehouseStock join).
+   */
+  city?: string;
 }

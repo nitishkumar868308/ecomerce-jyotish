@@ -56,9 +56,15 @@ export function QuantityControl({
     setShowDeleteModal(false);
   };
 
-  const btnSize = size === "sm" ? "min-h-8 w-9" : "min-h-11 w-14";
-  const qtySize = size === "sm" ? "min-h-8 w-9 text-sm" : "min-h-11 w-14 text-base";
-  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  // Sizes are bumped so the whole visible button is a comfortable tap target.
+  // Minimum touch-target guidance: 44-48px. Small variant is still >=40px.
+  const btnSize = size === "sm" ? "h-10 w-12" : "h-12 w-16";
+  const qtySize =
+    size === "sm" ? "h-10 w-12 text-sm" : "h-12 w-16 text-base";
+  const iconSize = size === "sm" ? "h-4 w-4" : "h-5 w-5";
+
+  const btnBase =
+    "flex items-center justify-center select-none touch-manipulation text-[var(--text-secondary)] transition-colors active:scale-95 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-40";
 
   return (
     <>
@@ -66,17 +72,14 @@ export function QuantityControl({
         className={cn(
           "inline-flex items-stretch overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]",
           disabled && "pointer-events-none opacity-50",
-          className
+          className,
         )}
       >
         <button
           type="button"
           onClick={handleMinusClick}
           disabled={disabled || (isAtMin && !showDelete)}
-          className={cn(
-            "flex items-center justify-center text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-40",
-            btnSize
-          )}
+          className={cn(btnBase, btnSize)}
           aria-label={isAtMin && showDelete ? "Remove item" : "Decrease quantity"}
         >
           {isAtMin && showDelete ? (
@@ -88,7 +91,7 @@ export function QuantityControl({
         <span
           className={cn(
             "flex items-center justify-center border-x border-[var(--border-primary)] bg-[var(--bg-primary)] font-semibold text-[var(--text-primary)]",
-            qtySize
+            qtySize,
           )}
         >
           {quantity}
@@ -97,10 +100,7 @@ export function QuantityControl({
           type="button"
           onClick={handlePlusClick}
           disabled={disabled || isAtMax}
-          className={cn(
-            "flex items-center justify-center text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-40",
-            btnSize
-          )}
+          className={cn(btnBase, btnSize)}
           aria-label="Increase quantity"
         >
           <Plus className={iconSize} />

@@ -1,16 +1,34 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ENDPOINTS } from "@/lib/api";
-import type { Banner, HeaderItem, VideoStory } from "@/types/banner";
+import type {
+  Banner,
+  BannerCountryInput,
+  BannerStateInput,
+  HeaderItem,
+  VideoStory,
+} from "@/types/banner";
 import type { ApiResponse } from "@/types/api";
 import toast from "react-hot-toast";
 
 // --- Banners ---
 
+export interface BannerPayload {
+  text?: string;
+  image?: string;
+  link?: string;
+  platform: string[];
+  active?: boolean;
+  countries?: BannerCountryInput[];
+  states?: BannerStateInput[];
+}
+
 export function useAdminBanners() {
   return useQuery({
     queryKey: ["admin", "banners"],
     queryFn: async () => {
-      const { data } = await api.get<ApiResponse<Banner[]>>(ENDPOINTS.BANNERS.LIST);
+      const { data } = await api.get<ApiResponse<Banner[]>>(
+        ENDPOINTS.BANNERS.LIST,
+      );
       return data.data;
     },
     staleTime: 60 * 1000,
@@ -20,18 +38,43 @@ export function useAdminBanners() {
 export function useAdminCreateBanner() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: FormData) => {
-      const { data } = await api.post(ENDPOINTS.BANNERS.CREATE, payload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      return data;
+    mutationFn: async (payload: BannerPayload) => {
+      const { data } = await api.post<ApiResponse<Banner>>(
+        ENDPOINTS.BANNERS.CREATE,
+        payload,
+      );
+      return data.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "banners"] });
       qc.invalidateQueries({ queryKey: ["banners"] });
       toast.success("Banner created!");
     },
-    onError: (error: any) => toast.error(error.response?.data?.message || "Failed to create banner"),
+    onError: (error: any) =>
+      toast.error(error.response?.data?.message || "Failed to create banner"),
+  });
+}
+
+export function useAdminUpdateBanner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...payload
+    }: { id: number } & Partial<BannerPayload>) => {
+      const { data } = await api.put<ApiResponse<Banner>>(
+        ENDPOINTS.BANNERS.UPDATE(id),
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "banners"] });
+      qc.invalidateQueries({ queryKey: ["banners"] });
+      toast.success("Banner updated!");
+    },
+    onError: (error: any) =>
+      toast.error(error.response?.data?.message || "Failed to update banner"),
   });
 }
 
@@ -46,7 +89,8 @@ export function useAdminDeleteBanner() {
       qc.invalidateQueries({ queryKey: ["banners"] });
       toast.success("Banner deleted!");
     },
-    onError: (error: any) => toast.error(error.response?.data?.message || "Failed to delete banner"),
+    onError: (error: any) =>
+      toast.error(error.response?.data?.message || "Failed to delete banner"),
   });
 }
 
@@ -66,16 +110,43 @@ export function useAdminHeaders() {
 export function useAdminCreateHeader() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: FormData | Partial<HeaderItem>) => {
-      const { data } = await api.post(ENDPOINTS.HEADERS.CREATE, payload);
-      return data;
+    mutationFn: async (payload: Partial<HeaderItem>) => {
+      const { data } = await api.post<ApiResponse<HeaderItem>>(
+        ENDPOINTS.HEADERS.CREATE,
+        payload,
+      );
+      return data.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "headers"] });
       qc.invalidateQueries({ queryKey: ["headers"] });
-      toast.success("Header created!");
+      toast.success("Menu item created!");
     },
-    onError: (error: any) => toast.error(error.response?.data?.message || "Failed to create header"),
+    onError: (error: any) =>
+      toast.error(error.response?.data?.message || "Failed to create menu item"),
+  });
+}
+
+export function useAdminUpdateHeader() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...payload
+    }: { id: number } & Partial<HeaderItem>) => {
+      const { data } = await api.put<ApiResponse<HeaderItem>>(
+        ENDPOINTS.HEADERS.UPDATE(id),
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "headers"] });
+      qc.invalidateQueries({ queryKey: ["headers"] });
+      toast.success("Menu item updated!");
+    },
+    onError: (error: any) =>
+      toast.error(error.response?.data?.message || "Failed to update menu item"),
   });
 }
 
@@ -88,9 +159,10 @@ export function useAdminDeleteHeader() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "headers"] });
       qc.invalidateQueries({ queryKey: ["headers"] });
-      toast.success("Header deleted!");
+      toast.success("Menu item deleted!");
     },
-    onError: (error: any) => toast.error(error.response?.data?.message || "Failed to delete header"),
+    onError: (error: any) =>
+      toast.error(error.response?.data?.message || "Failed to delete menu item"),
   });
 }
 
@@ -111,7 +183,12 @@ export function useAdminCreateVideoStory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: FormData | Partial<VideoStory>) => {
-      const { data } = await api.post(ENDPOINTS.VIDEO_STORY.CREATE, payload);
+      const isForm = typeof FormData !== "undefined" && payload instanceof FormData;
+      const { data } = await api.post(
+        ENDPOINTS.VIDEO_STORY.CREATE,
+        payload,
+        isForm ? { headers: { "Content-Type": "multipart/form-data" } } : undefined,
+      );
       return data;
     },
     onSuccess: () => {
@@ -120,6 +197,22 @@ export function useAdminCreateVideoStory() {
       toast.success("Video story created!");
     },
     onError: (error: any) => toast.error(error.response?.data?.message || "Failed to create video story"),
+  });
+}
+
+export function useAdminUpdateVideoStory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: { id: number } & Partial<VideoStory>) => {
+      const { data } = await api.put(ENDPOINTS.VIDEO_STORY.UPDATE(id), payload);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "videoStories"] });
+      qc.invalidateQueries({ queryKey: ["videoStories"] });
+      toast.success("Video story updated!");
+    },
+    onError: (error: any) => toast.error(error.response?.data?.message || "Failed to update video story"),
   });
 }
 

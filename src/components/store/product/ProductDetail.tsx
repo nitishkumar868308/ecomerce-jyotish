@@ -12,7 +12,6 @@ import { calculateOffer } from "@/lib/offers";
 import { ProductImages } from "./ProductImages";
 import { OfferList } from "./OfferList";
 import { BulkPricingList } from "./BulkPricingList";
-import { ProductDescription } from "./ProductDescription";
 import { QuantityControl } from "@/components/store/shared/QuantityControl";
 import { ProductVariationGrid } from "./ProductVariationGrid";
 import { ProductTabs } from "./ProductTabs";
@@ -69,7 +68,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
 
   const primaryOffer =
     variationOffer || product.primaryOffer || product.offers?.[0] || null;
-  const offerResult = calculateOffer(activePrice, primaryOffer);
+  const offerResult = calculateOffer(activePrice, primaryOffer, quantity);
 
   const discount =
     activeMrp && activeMrp > activePrice
@@ -93,10 +92,6 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
   const activeShort =
     (selectedVariation as { short?: string } | null)?.short?.trim() ||
     (product as { short?: string }).short?.trim() ||
-    "";
-  const activeDescription =
-    (selectedVariation as { description?: string } | null)?.description?.trim() ||
-    product.description ||
     "";
 
   // Parse each variation's attributes (try structured attributes first, fallback to variationName)
@@ -283,6 +278,7 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
               offers={product.offers}
               bulkPrice={product.bulkPrice}
               minQuantity={product.minQuantity}
+              activeQuantity={totalProductQty + quantity}
               claimedOfferIds={
                 cartItems
                   ?.filter((ci) => ci.productId === product.id && ci.offerSummary?.claimed)
@@ -392,11 +388,9 @@ export function ProductDetail({ product, className }: ProductDetailProps) {
         </motion.div>
       </div>
 
-      {/* Long description */}
-      {activeDescription && <ProductDescription html={activeDescription} />}
-
-      {/* Tabs: Description / Product Details / Reviews & Rating */}
-      <ProductTabs product={product} />
+      {/* Tabs: Description / Product Details / Reviews & Rating
+          (long description lives inside the Description tab below) */}
+      <ProductTabs product={product} selectedVariation={selectedVariation} />
 
       {/* Mobile Fixed Bottom Bar */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex items-stretch gap-3 border-t border-[var(--border-primary)] bg-[var(--bg-primary)] px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] lg:hidden">
