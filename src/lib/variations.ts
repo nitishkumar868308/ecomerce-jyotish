@@ -62,7 +62,14 @@ export function generateAttributeCombos(
   return combos;
 }
 
-/** Build a suggested SKU from a parent SKU + attribute combo. */
+/**
+ * Build a suggested SKU from a parent SKU + attribute combo.
+ *
+ * Each axis contributes up to 10 chars so values like "Pack of 2" and
+ * "Pack of 4" don't both collapse to "PACK" (which was the cause of the
+ * duplicate-SKU error when admins added multiple size/form variants).
+ * Admins can always hand-edit the suggestion before saving.
+ */
 export function suggestVariationSku(
   parentSku: string,
   combo: AttributeComboEntry[],
@@ -72,7 +79,7 @@ export function suggestVariationSku(
       c.value
         .toUpperCase()
         .replace(/[^A-Z0-9]+/g, "")
-        .slice(0, 4),
+        .slice(0, 10),
     )
     .join("-");
   const base = parentSku || "SKU";

@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { ROUTES } from "@/config/routes";
 import { APP_NAME } from "@/config/constants";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 const loginSchema = Yup.object({
   email: Yup.string().email("Invalid email address").required("Email is required"),
@@ -21,6 +22,7 @@ const loginSchema = Yup.object({
 export default function LoginJyotishPage() {
   const router = useRouter();
   const loginMutation = useJyotishLogin();
+  const setAuth = useAuthStore((s) => s.setAuth);
   const [showPassword, setShowPassword] = useState(false);
 
   const formik = useFormik({
@@ -28,11 +30,36 @@ export default function LoginJyotishPage() {
     validationSchema: loginSchema,
     onSubmit: (values) => {
       loginMutation.mutate(values, {
-        onSuccess: (data: any) => {
-          // Store astrologer token
-          if (data?.token) {
-            localStorage.setItem("jyotish_token", data.token);
+        onSuccess: (res: any) => {
+          // Backend wraps every response in `{ success, data }`, and the
+          // astrologer login payload is `{ token, astrologer }`. Store
+          // the token under `jyotish_token` (the dashboard layout guard
+          // reads this key) AND hydrate the auth store so the dashboard
+          // can greet the astrologer by name.
+          const inner = res?.data ?? res ?? {};
+          const token: string | undefined = inner?.token ?? res?.token;
+          const astro = inner?.astrologer ?? inner;
+          if (!token) {
+            // Defensive: if the backend didn't mint a token, fall through
+            // to the login page instead of silently routing to a guarded
+            // dashboard that will bounce us right back.
+            return;
           }
+          localStorage.setItem("jyotish_token", token);
+          setAuth(
+            {
+              id: astro?.id ?? 0,
+              name:
+                astro?.displayName ||
+                astro?.fullName ||
+                astro?.name ||
+                "Astrologer",
+              email: astro?.email ?? values.email,
+              role: "ASTROLOGER" as any,
+              avatar: astro?.profile?.image ?? undefined,
+            } as any,
+            token,
+          );
           router.push(ROUTES.JYOTISH.DASHBOARD);
         },
       });
@@ -159,10 +186,12 @@ export default function LoginJyotishPage() {
               )}
             </div>
 
-            {/* Forgot Password */}
+            {/* Forgot Password — routes to the jyotish-themed 3-step
+                reset flow so the astrologer never sees wizard chrome
+                mid-auth. */}
             <div className="flex justify-end">
               <Link
-                href={ROUTES.RESET_PASSWORD}
+                href={ROUTES.RESET_PASSWORD_JYOTISH}
                 className="text-sm font-medium text-[var(--jy-accent-gold)] hover:underline"
               >
                 Forgot Password?

@@ -30,7 +30,12 @@ export function useAdminProduct(id: string | number) {
       return data.data;
     },
     enabled: !!id,
-    staleTime: 60 * 1000,
+    // Always refetch on mount — after a save + navigate-back the cached
+    // copy would otherwise show yesterday's variation order / flags.
+    // Mutations also invalidate this key, but `refetchOnMount: "always"`
+    // is belt-and-braces for cases like a router.back().
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -67,9 +72,19 @@ export function useAdminUpdateProduct() {
       );
       return data.data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["admin", "products"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      // Single-product key has its own cache bucket — invalidate it too
+      // so the edit form reopens with the saved state, not stale data.
+      if (variables?.id) {
+        qc.invalidateQueries({
+          queryKey: ["admin", "product", variables.id],
+        });
+        qc.invalidateQueries({
+          queryKey: ["products", "single", variables.id],
+        });
+      }
       toast.success("Product updated!");
     },
     onError: (e: any) =>

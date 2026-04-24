@@ -19,7 +19,12 @@ export function useBlog(slugOrId: string | number) {
   return useQuery({
     queryKey: ["blog", slugOrId],
     queryFn: async () => {
-      const { data } = await api.get<ApiResponse<Blog>>(ENDPOINTS.BLOG.SINGLE(slugOrId));
+      // Backend resolves a single post via the list endpoint with ?slug=… —
+      // there's no `/blog/:slug` GET route. Hitting that path was returning
+      // the 404 that surfaced as "Post not found".
+      const { data } = await api.get<ApiResponse<Blog>>(ENDPOINTS.BLOG.LIST, {
+        params: { slug: String(slugOrId) },
+      });
       return data.data;
     },
     enabled: !!slugOrId,

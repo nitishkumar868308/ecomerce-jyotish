@@ -104,8 +104,11 @@
   --admin-header: #131C31;
 }
 
-/* QuickGo light theme */
-.quickgo-theme {
+/* QuickGo light theme. The second selector lets the storefront checkout
+   page (which lives under /(store), not under /hecate-quickgo) inherit the
+   same teal palette when opened with ?platform=quickgo. */
+.quickgo-theme,
+.checkout-theme-quickgo {
   --bg-primary: #F0FDFA;
   --bg-secondary: #CCFBF1;
   --bg-tertiary: #99F6E4;
@@ -149,7 +152,8 @@
 }
 
 /* QuickGo dark theme */
-.dark .quickgo-theme {
+.dark .quickgo-theme,
+.dark .checkout-theme-quickgo {
   --bg-primary: #042F2E;
   --bg-secondary: #064E3B;
   --bg-tertiary: #065F46;
@@ -357,6 +361,38 @@ body * {
 @keyframes jy-glow-pulse {
   0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.2); }
   50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.4); }
+}
+@keyframes jy-orbit {
+  to { transform: rotate(360deg); }
+}
+@keyframes jy-orbit-reverse {
+  to { transform: rotate(-360deg); }
+}
+@keyframes jy-rise-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* For SVG <g> targets we honour an inline `transform-origin` in viewBox
+   coords (e.g. "100px 100px"); transform-box:view-box makes that coordinate
+   space resolve as expected in Chrome/Firefox/Safari. */
+.jy-animate-orbit-slow   { animation: jy-orbit 28s linear infinite; transform-box: view-box; }
+.jy-animate-orbit-medium { animation: jy-orbit 18s linear infinite; transform-box: view-box; }
+.jy-animate-orbit-reverse { animation: jy-orbit-reverse 40s linear infinite; transform-box: view-box; }
+.jy-animate-float        { animation: jy-float 6s ease-in-out infinite; }
+.jy-animate-twinkle      { animation: jy-twinkle 2.5s ease-in-out infinite; }
+.jy-animate-rise-in      { animation: jy-rise-in 0.7s ease-out forwards; opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .jy-animate-orbit-slow,
+  .jy-animate-orbit-medium,
+  .jy-animate-orbit-reverse,
+  .jy-animate-float,
+  .jy-animate-twinkle,
+  .jy-animate-rise-in {
+    animation: none;
+  }
+  .jy-animate-rise-in { opacity: 1; }
 }
 
 @keyframes loader-orb-glow {

@@ -24,7 +24,21 @@ api.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    const country = localStorage.getItem("selectedCountry") || "IND";
+    // QuickGo is an India-only surface: its inventory, pricing, and stock
+    // model all assume INR + domestic fulfillment. Any request made while
+    // the shopper is on a QuickGo route (or a QuickGo-tagged checkout/
+    // success/failure page carrying ?platform=quickgo) is forced to IND
+    // so the multi-country conversion doesn't silently change prices.
+    const path =
+      typeof window.location !== "undefined" ? window.location.pathname : "";
+    const search =
+      typeof window.location !== "undefined" ? window.location.search : "";
+    const isQuickGoPath =
+      path.startsWith("/hecate-quickgo") ||
+      /(^|[?&])platform=(quickgo|hecate-quickgo)(&|$)/i.test(search);
+    const country = isQuickGoPath
+      ? "IND"
+      : localStorage.getItem("selectedCountry") || "IND";
     config.headers["x-country"] = country;
   }
   return config;
@@ -55,6 +69,7 @@ export const ENDPOINTS = {
     ME: "/auth/me",
     GOOGLE: "/auth/google",
     FORGOT_PASSWORD: "/auth/forgot-password",
+    VERIFY_FORGOT_OTP: "/auth/verify-forgot-otp",
     RESET_PASSWORD: "/auth/reset-password",
     GET_ALL_USERS: "/auth/getAllUser",
     UPDATE_USER: "/auth/updateUser",
@@ -66,6 +81,7 @@ export const ENDPOINTS = {
     ALL: "/products/all",
     SINGLE: (id: string | number) => `/products/${id}`,
     CHECK_SKU: "/products/check-sku",
+    SEARCH: "/products/search",
     MASTER: "/masterProducts",
   },
   CATEGORIES: {
@@ -85,6 +101,7 @@ export const ENDPOINTS = {
   },
   ORDERS: {
     LIST: "/orders",
+    ME: "/orders/me",
     CREATE: "/orders",
     SINGLE: (id: string | number) => `/orders/${id}`,
     TRACK: (id: string | number) => `/orders/track/${id}`,
@@ -150,6 +167,7 @@ export const ENDPOINTS = {
   },
   PROMO_CODES: {
     LIST: "/promo-codes",
+    ACTIVE: "/promo-codes/active",
     CREATE: "/promo-codes",
     APPLY: "/promo-codes/apply",
     UPDATE: (id: string | number) => `/promo-codes/${id}`,
@@ -217,6 +235,9 @@ export const ENDPOINTS = {
   SKU_MAPPING: {
     LIST: "/sku-mapping",
     CREATE: "/sku-mapping",
+    DELETE: (id: string | number) => `/sku-mapping/${id}`,
+    INVENTORY: "/sku-mapping/inventory",
+    INTERNAL_SKUS: "/sku-mapping/internal-skus",
   },
   LOCATION: {
     STATES: "/state",
@@ -233,15 +254,18 @@ export const ENDPOINTS = {
     CREATE: "/send_to_warehouse",
   },
   DELHI_STORE: {
-    LIST: "/delhi_store",
-    UPDATE: (id: string | number) => `/delhi_store/${id}`,
+    LIST: "/delhi-store",
+    UPDATE: (id: string | number) => `/delhi-store/${id}`,
   },
   BANGALORE_INVENTORY: {
     LIST: "/banglore_increff_inventory",
     SYNC: "/banglore_increff_inventory/sync",
   },
   JYOTISH: {
-    REGISTER: "/jyotish/register",
+    // Backend exposes `/jyotish/astrologer` for registration (creates an
+    // AstrologerAccount). Credentials are mailed out later, after admin
+    // approval — there is no password field at signup time.
+    REGISTER: "/jyotish/astrologer",
     LOGIN: "/jyotish/login",
     ASTROLOGER: {
       LIST: "/jyotish/astrologer",
@@ -253,6 +277,13 @@ export const ENDPOINTS = {
     },
     CHAT: {
       SESSIONS: "/jyotish/chat/sessions",
+      MISSED: "/jyotish/chat/missed",
+      REQUESTS: "/jyotish/chat/requests",
+      USER_ACTIVE: "/jyotish/chat/user-active",
+      EARNINGS: "/jyotish/chat/earnings",
+      ADMIN_TRANSACTIONS: "/jyotish/chat/admin/transactions",
+      MY_HISTORY: "/jyotish/chat/my-history",
+      REVIEW: (id: string | number) => `/jyotish/chat/${id}/review`,
       START: "/jyotish/chat/start-session",
       REQUEST: "/jyotish/chat/request",
       ACCEPT: "/jyotish/chat/accept",
@@ -260,6 +291,12 @@ export const ENDPOINTS = {
       END: "/jyotish/chat/end",
       RESUME: "/jyotish/chat/resume",
       SESSION: (id: string | number) => `/jyotish/chat/session/${id}`,
+      MESSAGES: (id: string | number) => `/jyotish/chat/messages/${id}`,
+      SEND: (id: string | number) => `/jyotish/chat/${id}/send`,
+      TYPING: (id: string | number) => `/jyotish/chat/${id}/typing`,
+      STATUS: (id: string | number) => `/jyotish/chat/${id}/status`,
+      ADDING_MONEY: (id: string | number) =>
+        `/jyotish/chat/${id}/adding-money`,
     },
     AD_CAMPAIGN: {
       LIST: "/jyotish/ad-campaign",
@@ -275,8 +312,9 @@ export const ENDPOINTS = {
     PROFILE_EDIT: {
       LIST: "/jyotish/profile-edit-requests",
       CREATE: "/jyotish/profile-edit-requests",
-      APPROVE: (id: string | number) => `/jyotish/profile-edit-requests/${id}/approve`,
-      REJECT: (id: string | number) => `/jyotish/profile-edit-requests/${id}/reject`,
+      // Backend exposes a single `fulfill` route — frontend approve/
+      // reject hooks pass the matching `overallStatus` in the body.
+      FULFILL: (id: string | number) => `/jyotish/profile-edit-requests/${id}/fulfill`,
     },
     SERVICES: "/book_consultant/services",
     SLOTS: "/book_consultant/slots",
@@ -306,6 +344,7 @@ export const ENDPOINTS = {
   WALLET: {
     BALANCE: "/wallet",
     TRANSACTIONS: "/wallet/transactions",
+    TOPUP: "/wallet/topup",
   },
   CHAT: {
     SESSIONS: "/chat",

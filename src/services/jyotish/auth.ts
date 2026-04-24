@@ -37,3 +37,44 @@ export function useJyotishLogin() {
     },
   });
 }
+
+/* ─── Astrologer forgot-password flow (mirrors the shopper flow) ─── */
+
+export function useJyotishForgotPassword() {
+  return useMutation({
+    mutationFn: async (email: string) => {
+      const { data } = await api.post("/jyotish/astrologer/forgot-password", {
+        email,
+      });
+      return data;
+    },
+  });
+}
+
+export function useJyotishVerifyForgotOtp() {
+  return useMutation({
+    mutationFn: async (payload: { email: string; otp: string }) => {
+      const { data } = await api.post(
+        "/jyotish/astrologer/verify-forgot-otp",
+        payload,
+      );
+      return data;
+    },
+  });
+}
+
+export function useJyotishResetPassword() {
+  return useMutation({
+    mutationFn: async (payload: {
+      email: string;
+      otp: string;
+      password: string;
+    }) => {
+      const { data } = await api.post(
+        "/jyotish/astrologer/reset-password",
+        payload,
+      );
+      return data;
+    },
+  });
+}

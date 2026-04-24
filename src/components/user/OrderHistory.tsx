@@ -1,40 +1,76 @@
 "use client";
 
 import React, { useState } from "react";
-import { useOrders } from "@/services/orders";
-import { OrderDetail } from "./OrderDetail";
+import { useMyOrders } from "@/services/orders";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/loader/Skeleton";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { OrderDetailModal } from "./OrderDetailModal";
+import { ExternalLink, Eye, Package, ShoppingBag } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400",
-  processing: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
-  shipped: "bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400",
-  delivered: "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400",
-  cancelled: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
-  refunded: "bg-gray-100 text-gray-700 dark:bg-gray-500/10 dark:text-gray-400",
+const STATUS_VARIANT: Record<
+  string,
+  { label: string; variant: "default" | "info" | "warning" | "success" | "danger" }
+> = {
+  PENDING: { label: "Pending", variant: "warning" },
+  PROCESSING: { label: "Processing", variant: "info" },
+  SHIPPED: { label: "Shipped", variant: "info" },
+  DELIVERED: { label: "Delivered", variant: "success" },
+  CANCELLED: { label: "Cancelled", variant: "danger" },
+  FAILED: { label: "Failed", variant: "danger" },
+  COMPLETED: { label: "Completed", variant: "success" },
+  REFUND: { label: "Refunded", variant: "default" },
 };
 
+const SOURCE_LABEL: Record<string, { label: string; cls: string }> = {
+  wizard: {
+    label: "Wizard Mall",
+    cls: "bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]",
+  },
+  website: {
+    label: "Wizard Mall",
+    cls: "bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]",
+  },
+  quickgo: { label: "QuickGo", cls: "bg-amber-100 text-amber-700" },
+  "hecate-quickgo": { label: "QuickGo", cls: "bg-amber-100 text-amber-700" },
+  jyotish: { label: "Jyotish", cls: "bg-purple-100 text-purple-700" },
+};
+
+function formatDate(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function formatMoney(amount: number | null | undefined, symbol?: string) {
+  const n = Number(amount ?? 0);
+  return `${symbol ?? "₹"}${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
 export function OrderHistory() {
+  const { user } = useAuthStore();
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useOrders({ page, limit: 10 });
-  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const { data, isLoading } = useMyOrders(user?.id, { page, limit: 10 });
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
   const orders = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
 
-  if (selectedOrder) {
-    return (
-      <OrderDetail
-        orderId={selectedOrder}
-        onBack={() => setSelectedOrder(null)}
-      />
-    );
-  }
-
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-20 rounded-xl shimmer" />
+      <div className="mt-4 space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-xl" />
         ))}
       </div>
     );
@@ -42,82 +78,147 @@ export function OrderHistory() {
 
   if (orders.length === 0) {
     return (
-      <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] py-16 text-center">
-        <p className="text-lg font-semibold text-[var(--text-primary)]">
-          No orders yet
-        </p>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Your orders will appear here once you make a purchase
-        </p>
+      <div className="mt-4 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-card)] py-16">
+        <EmptyState
+          icon={ShoppingBag}
+          title="No orders yet"
+          description="When you place an order it'll show up here with track + view options."
+        />
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="mt-4">
       <div className="space-y-3">
-        {orders.map((order: any) => {
-          const id = order._id || order.id;
+        {orders.map((order) => {
+          const o = order as unknown as Record<string, any>;
+          const source = String(o.orderBy ?? "wizard").toLowerCase();
+          const sourceCfg = SOURCE_LABEL[source] ?? SOURCE_LABEL.wizard;
+          const statusCfg =
+            STATUS_VARIANT[String(o.status ?? "PENDING").toUpperCase()] ??
+            STATUS_VARIANT.PENDING;
+          const trackingLink = o.trackingLink as string | undefined;
+          const total = Number(o.totalAmount ?? 0);
+          const symbol = (o.currencySymbol as string) ?? "₹";
+          const itemCount = Array.isArray(o.orderItems)
+            ? o.orderItems.length
+            : 0;
+
           return (
-            <button
-              key={id}
-              onClick={() => setSelectedOrder(String(id))}
-              className="flex w-full items-center justify-between rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] px-5 py-4 text-left transition-colors hover:bg-[var(--bg-card-hover)]"
+            <div
+              key={o.id}
+              className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-4 transition-shadow hover:shadow-sm sm:p-5"
             >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  Order #{String(id).slice(-8)}
-                </p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  {order.createdAt
-                    ? new Date(order.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : ""}
-                  {order.items && ` \u2022 ${order.items.length} item(s)`}
-                </p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                {/* Left: order identity */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+                      {o.orderNumber ?? `Order #${o.id}`}
+                    </p>
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                        sourceCfg.cls,
+                      )}
+                    >
+                      {sourceCfg.label}
+                    </span>
+                    <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
+                    <span className="inline-flex items-center gap-1">
+                      <Package className="h-3.5 w-3.5" />
+                      {itemCount} {itemCount === 1 ? "item" : "items"}
+                    </span>
+                    <span>•</span>
+                    <span>Placed on {formatDate(o.createdAt)}</span>
+                    {o.paymentStatus === "PAID" && o.invoiceNumber && (
+                      <>
+                        <span>•</span>
+                        <span className="font-medium text-[var(--text-secondary)]">
+                          Invoice {o.invoiceNumber}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: total + actions */}
+                <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center">
+                  <p className="text-lg font-bold text-[var(--text-primary)]">
+                    {formatMoney(total, symbol)}
+                  </p>
+                  <div className="flex gap-2">
+                    {trackingLink ? (
+                      <a
+                        href={trackingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<ExternalLink className="h-3.5 w-3.5" />}
+                        >
+                          Track
+                        </Button>
+                      </a>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        leftIcon={<ExternalLink className="h-3.5 w-3.5" />}
+                        title="Tracking link not available yet"
+                      >
+                        Track
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => setSelectedOrderId(o.id)}
+                      leftIcon={<Eye className="h-3.5 w-3.5" />}
+                    >
+                      View
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-semibold text-[var(--text-primary)]">
-                  &#8377;{order.total?.toLocaleString("en-IN") ?? 0}
-                </p>
-                <span
-                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                    statusColors[order.status] || statusColors.pending
-                  }`}
-                >
-                  {order.status || "pending"}
-                </span>
-              </div>
-            </button>
+            </div>
           );
         })}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-6 flex items-center justify-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="rounded-lg border border-[var(--border-primary)] px-3 py-1.5 text-sm disabled:opacity-40"
           >
             Previous
-          </button>
+          </Button>
           <span className="text-sm text-[var(--text-muted)]">
             Page {page} of {totalPages}
           </span>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="rounded-lg border border-[var(--border-primary)] px-3 py-1.5 text-sm disabled:opacity-40"
           >
             Next
-          </button>
+          </Button>
         </div>
       )}
+
+      <OrderDetailModal
+        orderId={selectedOrderId}
+        onClose={() => setSelectedOrderId(null)}
+      />
     </div>
   );
 }

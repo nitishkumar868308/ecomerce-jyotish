@@ -236,6 +236,11 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   // Keeps track of whether we've initialised from `initial` yet (hydrate once).
   const hydratedRef = useRef(false);
+  // Combos the admin explicitly deleted — the auto-combo effect must not
+  // resurrect them, otherwise deleting a variation looks like a no-op
+  // (the next re-render regenerates the "missing" combo from the
+  // cartesian product of `attributeSelections`).
+  const deletedComboKeysRef = useRef<Set<string>>(new Set());
 
   const { data: categories } = useCategories();
   const { data: subcategoriesAll } = useSubcategories();
@@ -253,7 +258,33 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
     if (!initial) return;
     if (!attributes) return; // wait for attributes before deriving selections
     hydratedRef.current = true;
-    setState(hydrateFromProduct(initial, attributes));
+    const hydrated = hydrateFromProduct(initial, attributes);
+    setState(hydrated);
+
+    // Any cartesian combo that's NOT represented by an existing variation
+    // is — by definition — one the admin intentionally removed at some
+    // point (and persisted to the DB). Pre-seed the delete blacklist
+    // with those so the auto-generator effect below doesn't resurrect
+    // them on this fresh mount. Without this, opening an edit screen
+    // after a variation delete would immediately re-add the combo from
+    // Color × Wax × Form × … because the values still live on other
+    // variations. (This was the bug that made Save-then-reopen appear
+    // to roll back the deletion.)
+    const existingKeys = new Set(
+      hydrated.variations
+        .filter((v) => v.attributeCombo.length > 0)
+        .map((v) => comboKey(v.attributeCombo)),
+    );
+    const desired = generateAttributeCombos(
+      hydrated.attributeSelections,
+      attributes,
+    );
+    for (const combo of desired) {
+      const key = comboKey(combo);
+      if (!existingKeys.has(key)) {
+        deletedComboKeysRef.current.add(key);
+      }
+    }
   }, [mode, initial, attributes]);
 
   // Subcategories scoped to the selected category.
@@ -400,33 +431,38 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
       (v) => v.attributeCombo.length === 0,
     );
 
-    const next: VariationRow[] = desired.map((combo) => {
-      const key = comboKey(combo);
-      const kept = existingByKey.get(key);
-      if (kept) return kept;
-      return {
-        _key: nextVarKey(),
-        attributeCombo: combo,
-        variationName: comboLabel(combo) || "Variation",
-        sku: suggestVariationSku(state.sku, combo),
-        name: "",
-        price: state.price,
-        stock: state.stock,
-        MRP: state.MRP,
-        short: state.short,
-        description: state.description,
-        active: true,
-        offerId: state.offerId,
-        barCode: state.barCode,
-        bulkPricingTiers: state.bulkPricingTiers.map((t) => ({ ...t })),
-        images: state.images.map((s) => ({
-          key: nextSlotKey(),
-          file: s.file,
-          persisted: s.persisted,
-        })),
-        tagIds: state.tagIds,
-      };
-    });
+    const next: VariationRow[] = desired
+      // Skip combos the admin has explicitly deleted in this session —
+      // otherwise the delete is cosmetic (combo comes right back on the
+      // next state update that re-fires this effect).
+      .filter((combo) => !deletedComboKeysRef.current.has(comboKey(combo)))
+      .map((combo) => {
+        const key = comboKey(combo);
+        const kept = existingByKey.get(key);
+        if (kept) return kept;
+        return {
+          _key: nextVarKey(),
+          attributeCombo: combo,
+          variationName: comboLabel(combo) || "Variation",
+          sku: suggestVariationSku(state.sku, combo),
+          name: "",
+          price: state.price,
+          stock: state.stock,
+          MRP: state.MRP,
+          short: state.short,
+          description: state.description,
+          active: true,
+          offerId: state.offerId,
+          barCode: state.barCode,
+          bulkPricingTiers: state.bulkPricingTiers.map((t) => ({ ...t })),
+          images: state.images.map((s) => ({
+            key: nextSlotKey(),
+            file: s.file,
+            persisted: s.persisted,
+          })),
+          tagIds: state.tagIds,
+        };
+      });
 
     patch("variations", [...next, ...customRows]);
     // We intentionally do NOT depend on the product-level defaults so that
@@ -496,6 +532,12 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
     if (!row) {
       setDeleteKey(null);
       return;
+    }
+    // Remember that this combo was intentionally removed so the auto-
+    // generator effect doesn't immediately recreate it the next time
+    // `attributeSelections` settles.
+    if (row.attributeCombo.length > 0) {
+      deletedComboKeysRef.current.add(comboKey(row.attributeCombo));
     }
     const nextVariations = state.variations.filter(
       (v) => v._key !== deleteKey,
@@ -610,8 +652,10 @@ export function ProductFormPage({ mode, initial }: ProductFormPageProps) {
         bulkPricingTiers: v.bulkPricingTiers,
         attributeCombo: v.attributeCombo,
         tagIds: v.tagIds,
+        // Index in the on-screen list drives the persisted order —
+        // drag-and-drop reorders mutate state.variations, so `i` here
+        // reflects exactly what the admin saw.
         sortOrder: i,
-        id: v.id,
       });
     }
 

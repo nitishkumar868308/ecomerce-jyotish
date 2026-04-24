@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Wallet, ShieldCheck, Zap } from "lucide-react";
-import { useWalletBalance } from "@/services/wallet";
+import { useAddMoneyToWallet, useWalletBalance } from "@/services/wallet";
 import { usePrice } from "@/hooks/usePrice";
+import { useCountryStore } from "@/stores/useCountryStore";
 import toast from "react-hot-toast";
 
 /**
@@ -23,22 +24,38 @@ export default function AddMoneyPage() {
   const router = useRouter();
   const { data: balance } = useWalletBalance();
   const { format, symbol } = usePrice();
+  const { code: countryCode, currency } = useCountryStore();
+  const addMoney = useAddMoneyToWallet();
   const [amount, setAmount] = useState<number>(500);
   const [custom, setCustom] = useState<string>("");
 
   const finalAmount = custom ? Number(custom) || 0 : amount;
 
-  const handleConfirm = () => {
+  // Same routing logic as checkout: India → PayU (INR), non-India →
+  // PayGlocal (international cards in the shopper's currency). Surfaced
+  // in the UI so the shopper knows which hosted page they'll land on.
+  const isIndia = (countryCode ?? "IND").toUpperCase() === "IND";
+  const gateway = isIndia ? "PayU" : "PayGlocal";
+  const gatewayCurrency = isIndia ? "INR" : currency;
+
+  const handleConfirm = async () => {
     if (finalAmount < 10) {
       toast.error("Minimum top-up is 10");
       return;
     }
-    // Placeholder — hooks into the payment gateway will be added with the
-    // PayU / PayGlocal work.
-    toast.success(
-      `Top-up intent captured: ${format(finalAmount)}. Payment gateway wiring coming soon.`,
-    );
-    router.push("/dashboard/wallet");
+    // Credits the user's wallet immediately and records a transaction.
+    // When the PayU / PayGlocal work lands, this direct call is replaced
+    // by a redirect to the hosted page + credit-on-callback flow.
+    try {
+      await addMoney.mutateAsync({
+        amount: finalAmount,
+        note: `Wallet top-up via ${gateway}`,
+      });
+      toast.success(`${format(finalAmount)} added to wallet.`);
+      router.push("/dashboard/wallet");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Could not add money. Try again.");
+    }
   };
 
   return (
@@ -118,8 +135,14 @@ export default function AddMoneyPage() {
           <p className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-success)]" />
             <span>
-              Secure top-up. Funds appear in your wallet immediately after
-              payment confirmation.
+              Secure top-up via{" "}
+              <strong className="text-[var(--text-primary)]">{gateway}</strong>
+              {" "}in{" "}
+              <strong className="text-[var(--text-primary)]">
+                {gatewayCurrency}
+              </strong>
+              . You picked {countryCode ?? "IND"} in the top bar — change it
+              there to switch gateway.
             </span>
           </p>
           <p className="mt-2 flex items-start gap-2">
@@ -134,10 +157,12 @@ export default function AddMoneyPage() {
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={finalAmount < 10}
+          disabled={finalAmount < 10 || addMoney.isPending}
           className="mt-6 w-full rounded-xl bg-[var(--accent-primary)] py-3 text-base font-semibold text-white transition-colors hover:bg-[var(--accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Add {format(finalAmount || 0)} to wallet
+          {addMoney.isPending
+            ? "Adding…"
+            : `Add ${format(finalAmount || 0)} to wallet`}
         </button>
       </div>
     </div>

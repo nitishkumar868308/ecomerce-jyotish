@@ -19,8 +19,11 @@ export interface User {
   updatedAt: string;
 }
 
+export type AddressType = "HOME" | "OFFICE" | "OTHER";
+
 export interface Address {
-  id: number;
+  // Address rows use cuid IDs in the DB, so this is a string.
+  id: string;
   userId: number;
   name: string;
   phone: string;
@@ -31,6 +34,13 @@ export interface Address {
   state: string;
   pincode: string;
   country: string;
+  /** Country phone code (e.g. "+91") remembered with the row so we can drive
+   * phone validation consistently if the user later edits. */
+  countryCode?: string;
+  /** Which bucket the shopper filed this row under. */
+  addressType?: AddressType;
+  /** Custom label when `addressType === "OTHER"` (e.g. "Parents' place"). */
+  addressLabel?: string;
   isDefault: boolean;
   createdAt: string;
 }

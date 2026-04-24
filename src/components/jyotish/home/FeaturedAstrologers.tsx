@@ -1,9 +1,17 @@
 "use client";
 
 import React, { useRef } from "react";
-import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAstrologers } from "@/services/jyotish/profile";
+import { AstrologerCard } from "@/components/jyotish/consult-now/AstrologerCard";
 
+/**
+ * Featured row on /jyotish. Reuses the same AstrologerCard the
+ * consult-now grid renders so the two surfaces look identical — the
+ * earlier bespoke card here was reading `a.name` / `a.avatar` /
+ * `a.pricePerMin` which never exist on the API response, which is why
+ * shoppers saw the "A / N/A / Consult Now" stub on every card.
+ */
 export function FeaturedAstrologers() {
   const { data: astrologers, isLoading } = useAstrologers();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -13,15 +21,15 @@ export function FeaturedAstrologers() {
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollBy({
-      left: dir === "left" ? -300 : 300,
+      left: dir === "left" ? -320 : 320,
       behavior: "smooth",
     });
   };
 
   return (
-    <section className="py-16">
+    <section className="py-14 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-end justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold sm:text-3xl">
               Featured{" "}
@@ -33,22 +41,20 @@ export function FeaturedAstrologers() {
           </div>
           <div className="hidden gap-2 sm:flex">
             <button
+              type="button"
               onClick={() => scroll("left")}
-              className="rounded-full border border-white/10 p-2 text-[var(--jy-text-secondary)] transition-colors hover:border-white/20 hover:text-white"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[var(--jy-text-secondary)] transition-colors hover:border-[var(--jy-accent-gold)]/40 hover:text-[var(--jy-accent-gold)]"
               aria-label="Scroll left"
             >
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
+              <ChevronLeft className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => scroll("right")}
-              className="rounded-full border border-white/10 p-2 text-[var(--jy-text-secondary)] transition-colors hover:border-white/20 hover:text-white"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[var(--jy-text-secondary)] transition-colors hover:border-[var(--jy-accent-gold)]/40 hover:text-[var(--jy-accent-gold)]"
               aria-label="Scroll right"
             >
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -58,60 +64,37 @@ export function FeaturedAstrologers() {
             {Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
-                className="min-w-[260px] flex-shrink-0 rounded-xl border border-[var(--jy-bg-card-border)] bg-[var(--jy-bg-card)] p-5"
+                className="min-w-[280px] flex-shrink-0 rounded-2xl border border-white/10 bg-[var(--jy-bg-card)] p-5"
               >
-                <div className="mx-auto mb-4 h-20 w-20 rounded-full shimmer" />
-                <div className="mx-auto mb-2 h-4 w-28 rounded shimmer" />
-                <div className="mx-auto mb-4 h-3 w-36 rounded shimmer" />
-                <div className="mx-auto h-8 w-24 rounded-lg shimmer" />
+                <div className="flex gap-3">
+                  <div className="h-16 w-16 rounded-2xl shimmer" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-28 rounded shimmer" />
+                    <div className="h-3 w-36 rounded shimmer" />
+                  </div>
+                </div>
+                <div className="mt-4 h-8 rounded-lg shimmer" />
               </div>
             ))}
+          </div>
+        ) : featured.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-[var(--jy-bg-card)] p-10 text-center text-sm text-[var(--jy-text-muted)]">
+            No astrologers published yet — check back soon.
           </div>
         ) : (
           <div
             ref={scrollRef}
-            className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide"
+            className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory"
           >
             {featured.map((a: any) => (
-              <Link
+              <div
                 key={a._id || a.id}
-                href={`/jyotish/astrologer/${a._id || a.id}`}
-                className="group min-w-[260px] flex-shrink-0 rounded-xl border border-[var(--jy-bg-card-border)] bg-[var(--jy-bg-card)] p-5 text-center transition-all hover:border-[var(--jy-accent-gold)]/30 hover:shadow-lg hover:shadow-[var(--jy-accent-gold)]/5"
+                className="min-w-[280px] max-w-[320px] flex-shrink-0 snap-start"
               >
-                <div className="relative mx-auto mb-4 h-20 w-20">
-                  <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-[var(--jy-accent-gold)]/20">
-                    {a.avatar ? (
-                      <img
-                        src={a.avatar}
-                        alt={a.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-[var(--jy-accent-purple)]/20 text-2xl font-bold text-[var(--jy-accent-purple-light)]">
-                        {a.name?.[0] || "A"}
-                      </div>
-                    )}
-                  </div>
-                  {a.isOnline && (
-                    <span className="absolute bottom-0 right-1 h-4 w-4 rounded-full border-2 border-[var(--jy-bg-primary)] bg-[var(--jy-online)]" />
-                  )}
-                </div>
-                <h3 className="mb-1 text-sm font-semibold text-[var(--jy-text-primary)] group-hover:text-[var(--jy-accent-gold)]">
-                  {a.name}
-                </h3>
-                <p className="mb-2 text-xs text-[var(--jy-text-muted)]">
-                  {(a.specializations ?? []).slice(0, 2).join(", ")}
-                </p>
-                <div className="mb-3 flex items-center justify-center gap-1 text-xs text-[var(--jy-accent-gold)]">
-                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                  <span>{a.rating?.toFixed(1) || "N/A"}</span>
-                </div>
-                <span className="inline-block rounded-lg bg-[var(--jy-accent-gold)]/10 px-3 py-1 text-xs font-medium text-[var(--jy-accent-gold)]">
-                  Consult Now
-                </span>
-              </Link>
+                {/* No `onBook` — the card's direct-launch flow handles
+                    wallet check + session ring on its own. */}
+                <AstrologerCard astrologer={a} />
+              </div>
             ))}
           </div>
         )}

@@ -65,14 +65,13 @@ export function WalletSection() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[var(--text-primary)] truncate">{tx.description}</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)] truncate">{tx.note || (tx.type === "CREDIT" ? "Money credited" : "Money debited")}</p>
                   <p className="text-xs text-[var(--text-muted)]">{formatDate(tx.createdAt)}</p>
                 </div>
                 <div className="text-right">
                   <p className={`text-sm font-bold ${tx.type === "CREDIT" ? "text-[var(--accent-success)]" : "text-[var(--accent-danger)]"}`}>
                     {tx.type === "CREDIT" ? "+" : "-"}{format(tx.amount)}
                   </p>
-                  <p className="text-xs text-[var(--text-muted)]">Bal: {format(tx.balance)}</p>
                 </div>
               </div>
             ))}

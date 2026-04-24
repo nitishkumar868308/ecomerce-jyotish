@@ -392,9 +392,17 @@ export default function AuthModal() {
               />
 
               <div className="flex justify-end">
+                {/* The full reset flow (email → OTP → new password) lives
+                    on /reset-password as a dedicated page so the modal
+                    doesn't have to juggle three separate forms. Close
+                    the modal cleanly before navigating so the backdrop
+                    transition doesn't fight with the route change. */}
                 <button
                   type="button"
-                  onClick={() => setView("forgot-password")}
+                  onClick={() => {
+                    closeModal();
+                    router.push(ROUTES.RESET_PASSWORD);
+                  }}
                   className="text-sm font-medium transition-colors duration-200 hover:underline"
                   style={{ color: "var(--accent-primary)" }}
                 >

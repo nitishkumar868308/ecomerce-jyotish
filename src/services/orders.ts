@@ -38,6 +38,51 @@ export function useOrders(params?: PaginationParams) {
   });
 }
 
+/**
+ * Orders placed by the currently signed-in shopper. Backend scopes the
+ * query by `userId` so the admin-only GET /orders listing stays off-limits
+ * to regular accounts. Returns the same normalised shape as useOrders.
+ */
+export function useMyOrders(
+  userId: number | undefined,
+  params?: PaginationParams,
+) {
+  return useQuery<PaginatedResponse<Order>>({
+    queryKey: ["orders", "me", userId, params],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await api.get<any>(ENDPOINTS.ORDERS.ME, {
+        params: { ...(params ?? {}), userId },
+      });
+      const inner = data?.data;
+      const isNested =
+        inner && !Array.isArray(inner) && Array.isArray(inner.data);
+      if (isNested) {
+        const meta = inner.meta ?? {};
+        return {
+          success: data?.success ?? true,
+          data: inner.data as Order[],
+          total: meta.total ?? inner.data.length,
+          page: meta.page ?? params?.page ?? 1,
+          limit: meta.limit ?? params?.limit ?? inner.data.length,
+          totalPages: meta.totalPages ?? 1,
+        };
+      }
+      if (Array.isArray(data?.data)) {
+        return {
+          success: data?.success ?? true,
+          data: data.data as Order[],
+          total: data.data.length,
+          page: params?.page ?? 1,
+          limit: params?.limit ?? data.data.length,
+          totalPages: 1,
+        };
+      }
+      return data as PaginatedResponse<Order>;
+    },
+  });
+}
+
 export function useOrder(id: string | number) {
   return useQuery({
     queryKey: ["order", id],

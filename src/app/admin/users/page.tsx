@@ -15,6 +15,7 @@ import {
   useAdminUpdateUser,
   useAdminDeleteUser,
 } from "@/services/admin/users";
+import { useUserCart } from "@/services/cart";
 import type { User, UserRole } from "@/types/user";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import {
@@ -431,6 +432,12 @@ export default function UsersPage() {
               </div>
             </div>
 
+            {/* Live cart — live items still in the shopper's cart (pre-
+                purchase). Uses the same public /cart endpoint the
+                storefront hits so prices include offer/bulk/currency
+                conversion and agree with what the shopper sees. */}
+            <UserCartSection userId={selected.id} />
+
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={closeDialog}>
                 Close
@@ -506,6 +513,107 @@ function InfoTile({
       <p className="mt-0.5 text-sm text-[var(--text-primary)] truncate">
         {value || <span className="text-[var(--text-muted)]">--</span>}
       </p>
+    </div>
+  );
+}
+
+function UserCartSection({ userId }: { userId: number }) {
+  const { data: cart, isLoading, isError } = useUserCart(userId);
+  const items = cart?.items ?? [];
+  const summary = cart?.summary;
+  const symbol = summary?.currencySymbol ?? "₹";
+
+  const fmt = (n: number | null | undefined) =>
+    `${symbol}${Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
+  return (
+    <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <UsersIcon className="h-3.5 w-3.5" /> Live Cart
+        </p>
+        {summary && items.length > 0 && (
+          <span className="text-xs text-[var(--text-muted)]">
+            {summary.itemCount ?? items.length} item
+            {(summary.itemCount ?? items.length) === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-[var(--text-muted)]">Loading cart…</p>
+      ) : isError ? (
+        <p className="text-xs text-[var(--accent-danger)]">Could not load cart.</p>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-[var(--text-muted)]">
+          This user's cart is empty.
+        </p>
+      ) : (
+        <>
+          <ul className="divide-y divide-[var(--border-primary)]">
+            {items.map((ci) => {
+              const img = resolveAssetUrl(
+                Array.isArray(ci.image) ? ci.image[0] : (ci.image as any),
+              );
+              const unit = Number(ci.pricePerItem ?? ci.originalPrice ?? 0);
+              const line = unit * Number(ci.quantity ?? 1);
+              return (
+                <li
+                  key={`${ci.id}`}
+                  className="flex items-center gap-3 py-2.5"
+                >
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[var(--bg-secondary)]">
+                    {img ? (
+                      <img
+                        src={img}
+                        alt={ci.productName ?? "Product"}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-[var(--text-muted)]">
+                        —
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                      {ci.productName}
+                    </p>
+                    {ci.variationName && (
+                      <p className="truncate text-[11px] text-[var(--text-muted)]">
+                        {ci.variationName}
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                      {fmt(unit)} × {ci.quantity}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold text-[var(--text-primary)]">
+                    {fmt(line)}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+          {summary && (
+            <div className="mt-3 space-y-1 border-t border-[var(--border-primary)] pt-3 text-xs">
+              <div className="flex justify-between text-[var(--text-secondary)]">
+                <span>Subtotal</span>
+                <span>{fmt(summary.subtotal)}</span>
+              </div>
+              {Number(summary.discount) > 0 && (
+                <div className="flex justify-between text-[var(--accent-success)]">
+                  <span>Discount</span>
+                  <span>-{fmt(summary.discount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-1 text-sm font-semibold text-[var(--text-primary)]">
+                <span>Total</span>
+                <span>{fmt(summary.total)}</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

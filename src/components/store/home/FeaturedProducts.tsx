@@ -277,12 +277,7 @@ function SubcategoryProducts({
 function ProductCard({ product }: { product: Product }) {
   const { format } = usePrice();
   const imgSrc = productImage(product, 0);
-  const price = Number(product.price) || 0;
-  const mrp = Number(product.MRP) || 0;
-  const hasDiscount = mrp > 0 && mrp > price;
-  const discountPercent = hasDiscount
-    ? Math.round(((mrp - price) / mrp) * 100)
-    : 0;
+  // MRP / strikethrough / "% OFF" badge removed at product-owner's request.
 
   // Collect variation info (sizes/colors/variation names)
   const variationTags = useMemo(() => {
@@ -341,11 +336,6 @@ function ProductCard({ product }: { product: Product }) {
           </div>
         )}
 
-        {hasDiscount && discountPercent > 0 && (
-          <span className="absolute left-1 top-1 rounded-full bg-[var(--accent-danger)] px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold text-white">
-            -{discountPercent}%
-          </span>
-        )}
       </div>
 
       {/* Info */}
@@ -359,11 +349,6 @@ function ProductCard({ product }: { product: Product }) {
           <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)]">
             <span>{format(product.price)}</span>
           </span>
-          {hasDiscount && (
-            <span className="text-[9px] sm:text-[10px] text-[var(--text-tertiary)] line-through">
-              <span>{format(product.MRP)}</span>
-            </span>
-          )}
         </div>
         {priceRange && (
           <p className="text-[9px] sm:text-[10px] text-[var(--text-muted)]">

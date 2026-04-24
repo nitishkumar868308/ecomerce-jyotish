@@ -3,16 +3,23 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FOOTER_NAV } from "@/config/navigation";
 import { APP_NAME } from "@/config/constants";
 import { ROUTES } from "@/config/routes";
+import { resolveMenuHref } from "@/lib/menuResolver";
 
 type SiteVariant = "wizard" | "quickgo" | "jyotish";
 
-function getSiteVariant(pathname: string): SiteVariant {
+function getSiteVariant(
+  pathname: string,
+  platformOverride?: string | null,
+): SiteVariant {
+  if (platformOverride === "quickgo" || platformOverride === "hecate-quickgo") {
+    return "quickgo";
+  }
   if (pathname.startsWith("/hecate-quickgo")) return "quickgo";
   if (pathname.startsWith("/jyotish")) return "jyotish";
   return "wizard";
@@ -53,9 +60,11 @@ const SOCIAL_LINKS = [
 function FooterLinkGroup({
   title,
   links,
+  variant,
 }: {
   title: string;
   links: { label: string; href: string }[];
+  variant: SiteVariant;
 }) {
   return (
     <div>
@@ -66,7 +75,10 @@ function FooterLinkGroup({
         {links.map((link) => (
           <li key={link.href}>
             <Link
-              href={link.href}
+              // Resolve by label so policy/about/contact links stay within
+              // the current site variant (wizard → /about, quickgo →
+              // /hecate-quickgo/about, etc.).
+              href={resolveMenuHref(link.label, variant)}
               className="text-sm text-[var(--text-secondary)] transition-colors duration-200 hover:text-[var(--accent-primary)]"
             >
               {link.label}
@@ -81,7 +93,11 @@ function FooterLinkGroup({
 export function Footer({ className }: { className?: string }) {
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
-  const variant = getSiteVariant(pathname);
+  const searchParams = useSearchParams();
+  const variant = getSiteVariant(
+    pathname,
+    searchParams?.get("platform")?.toLowerCase(),
+  );
   const brand = FOOTER_BRAND[variant];
 
   return (
@@ -125,8 +141,8 @@ export function Footer({ className }: { className?: string }) {
           </div>
 
           {/* Link columns */}
-          <FooterLinkGroup title="Company" links={FOOTER_NAV.company} />
-          <FooterLinkGroup title="Policies" links={FOOTER_NAV.policies} />
+          <FooterLinkGroup title="Company" links={FOOTER_NAV.company} variant={variant} />
+          <FooterLinkGroup title="Policies" links={FOOTER_NAV.policies} variant={variant} />
 
           {/* Contact Info instead of Account links */}
           <div>
@@ -169,19 +185,19 @@ export function Footer({ className }: { className?: string }) {
           <p>&copy; {currentYear} {brand.appName}. All rights reserved.</p>
           <div className="flex items-center gap-4">
             <Link
-              href={ROUTES.PRIVACY}
+              href={resolveMenuHref("privacy", variant)}
               className="transition-colors hover:text-[var(--text-primary)]"
             >
               Privacy
             </Link>
             <Link
-              href={ROUTES.TERMS}
+              href={resolveMenuHref("terms", variant)}
               className="transition-colors hover:text-[var(--text-primary)]"
             >
               Terms
             </Link>
             <Link
-              href={ROUTES.SHIPPING_POLICY}
+              href={resolveMenuHref("shipping", variant)}
               className="transition-colors hover:text-[var(--text-primary)]"
             >
               Shipping

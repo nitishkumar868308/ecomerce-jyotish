@@ -32,35 +32,42 @@ function normalise(raw: string): string {
  */
 type Resolver = string | ((variant: SiteVariant) => string);
 
+// QuickGo hosts its own themed copies of static pages under /hecate-quickgo/*.
+// When the current variant is quickgo we route there; otherwise the default
+// wizard routes apply.
+const qg = (path: string) => (v: SiteVariant) =>
+  v === "quickgo" ? `/hecate-quickgo${path}` : path;
+
 const ALIASES: Record<string, Resolver> = {
   // Home
   home: (v) => (v === "quickgo" ? ROUTES.QUICKGO.HOME : "/"),
 
   // Static content pages
-  about: "/about",
-  contact: "/contact",
+  about: qg("/about"),
+  contact: qg("/contact"),
   faq: "/faq",
   faqs: "/faq",
-  blog: "/blog",
-  blogs: "/blog",
+  blog: qg("/blog"),
+  blogs: qg("/blog"),
 
   // Policies
-  privacy: "/privacy-policy",
-  "privacy policy": "/privacy-policy",
-  refund: "/refund-policy",
-  "refund policy": "/refund-policy",
-  shipping: "/shipping-and-return-policy",
-  "shipping policy": "/shipping-and-return-policy",
-  "shipping return": "/shipping-and-return-policy",
-  "shipping return policy": "/shipping-and-return-policy",
-  "shipping returns": "/shipping-and-return-policy",
-  returns: "/shipping-and-return-policy",
-  terms: "/terms-and-conditions",
-  "terms conditions": "/terms-and-conditions",
-  tnc: "/terms-and-conditions",
+  privacy: qg("/privacy-policy"),
+  "privacy policy": qg("/privacy-policy"),
+  refund: qg("/refund-policy"),
+  "refund policy": qg("/refund-policy"),
+  shipping: qg("/shipping-and-return-policy"),
+  "shipping policy": qg("/shipping-and-return-policy"),
+  "shipping return": qg("/shipping-and-return-policy"),
+  "shipping return policy": qg("/shipping-and-return-policy"),
+  "shipping returns": qg("/shipping-and-return-policy"),
+  returns: qg("/shipping-and-return-policy"),
+  terms: qg("/terms-and-conditions"),
+  "terms conditions": qg("/terms-and-conditions"),
+  tnc: qg("/terms-and-conditions"),
 
   // Commerce
-  categories: "/categories",
+  categories: (v) =>
+    v === "quickgo" ? "/hecate-quickgo/categories" : "/categories",
   "book consultant": "/book-consultant",
   "book jyotish": "/book-consultant",
   jyotish: "/book-consultant",

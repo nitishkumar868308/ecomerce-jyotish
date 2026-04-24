@@ -2,16 +2,24 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Home, Grid3X3, Search, ShoppingBag, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/useCartStore";
 import { useUIStore } from "@/stores/useUIStore";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useCart } from "@/services/cart";
 import { ROUTES } from "@/config/routes";
 
 type SiteVariant = "wizard" | "quickgo" | "jyotish";
 
-function getSiteVariant(pathname: string): SiteVariant {
+function getSiteVariant(
+  pathname: string,
+  platformOverride?: string | null,
+): SiteVariant {
+  if (platformOverride === "quickgo" || platformOverride === "hecate-quickgo") {
+    return "quickgo";
+  }
   if (pathname.startsWith("/hecate-quickgo")) return "quickgo";
   if (pathname.startsWith("/jyotish")) return "jyotish";
   return "wizard";
@@ -19,8 +27,26 @@ function getSiteVariant(pathname: string): SiteVariant {
 
 export function MobileNav({ className }: { className?: string }) {
   const pathname = usePathname();
-  const variant = getSiteVariant(pathname);
-  const itemCount = useCartStore((s) => s.itemCount());
+  const searchParams = useSearchParams();
+  const variant = getSiteVariant(
+    pathname,
+    searchParams?.get("platform")?.toLowerCase(),
+  );
+  const { isLoggedIn } = useAuthStore();
+  const { data: cart } = useCart();
+  // Scope the count to the storefront the user is looking at — cart items
+  // are tagged with `purchasePlatform` so wizard/quickgo baskets stay
+  // separate. Logged-out shoppers don't have a server cart.
+  const itemCount = !isLoggedIn
+    ? 0
+    : cart?.items?.reduce((sum, item) => {
+        const p = String(item.purchasePlatform ?? "").toLowerCase();
+        const normalised =
+          p === "quickgo" || p === "hecate-quickgo" ? "quickgo" : "wizard";
+        const target = variant === "quickgo" ? "quickgo" : "wizard";
+        if (normalised !== target) return sum;
+        return sum + (item.quantity || 1);
+      }, 0) ?? 0;
   const toggleCart = useCartStore((s) => s.toggleCart);
   const { setSearchOpen } = useUIStore();
 

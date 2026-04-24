@@ -23,6 +23,42 @@ import { Eye, Mail, Trash2, Send, ExternalLink, Phone } from "lucide-react";
 
 type DialogMode = "view" | "reply" | null;
 
+/**
+ * Tiny pill for the originating platform (quickgo / jyotish / website).
+ * Contact messages come in from three frontends that share the same
+ * backend endpoint — the admin needs to know at a glance which surface
+ * the sender was on so replies can use the right tone/context.
+ */
+const PLATFORM_LABELS: Record<string, { label: string; cls: string }> = {
+  quickgo: {
+    label: "QuickGo",
+    cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600",
+  },
+  jyotish: {
+    label: "Jyotish",
+    cls: "border-amber-500/30 bg-amber-500/10 text-amber-600",
+  },
+  website: {
+    label: "Wizard Mall",
+    cls: "border-indigo-500/30 bg-indigo-500/10 text-indigo-600",
+  },
+};
+
+function PlatformBadge({ platform }: { platform?: string | null }) {
+  const key = (platform || "website").toLowerCase();
+  const meta = PLATFORM_LABELS[key] ?? {
+    label: platform || "Website",
+    cls: "border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
+  };
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${meta.cls}`}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 export default function ContactMessagesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -128,6 +164,14 @@ export default function ContactMessagesPage() {
       },
     },
     {
+      key: "platform",
+      label: "Platform",
+      render: (_val, row) => {
+        const m = row as unknown as ContactMessage;
+        return <PlatformBadge platform={m.platform} />;
+      },
+    },
+    {
       key: "isRead",
       label: "Status",
       render: (_val, row) => {
@@ -200,9 +244,12 @@ export default function ContactMessagesPage() {
                 {(selected.name ?? "?").slice(0, 1).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-[var(--text-primary)]">
-                  {selected.name}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate font-semibold text-[var(--text-primary)]">
+                    {selected.name}
+                  </p>
+                  <PlatformBadge platform={selected.platform} />
+                </div>
                 <a
                   href={`mailto:${selected.email}`}
                   className="inline-flex items-center gap-1 truncate text-xs text-[var(--accent-primary)] hover:underline"

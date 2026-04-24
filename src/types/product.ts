@@ -53,6 +53,10 @@ export interface ProductVariation {
   mrp?: string;
   stock: string;
   attributes?: Record<string, string>;
+  /** Structured attribute list stored on the DB row, e.g.
+   *  `[{ name: "Color", value: "Red" }, { name: "Form", value: "Pack of 2" }]`.
+   *  Preferred over parsing variationName when present. */
+  attributeCombo?: Array<{ name: string; value: string }>;
   image?: string | string[];
   active: boolean;
   deleted?: number;
@@ -125,8 +129,17 @@ export interface ProductFilters {
   /** Platform the request originates from — wizard | quickgo | jyotish. */
   platform?: string;
   /**
-   * City code for QuickGo: backend filters to products that have stock in
-   * this city's warehouse (via WarehouseStock join).
+   * City name for QuickGo — the EFFECTIVE fulfillment city the shopper
+   * picked on the landing modal. Backend resolves warehouses with this
+   * city as their fulfillment parent (so Faridabad pincodes still route
+   * to Delhi stock when Faridabad is fulfilled from Delhi).
    */
   city?: string;
+  /**
+   * Pincode the shopper picked alongside `city`. Backend uses this to
+   * narrow WareHouse matches and then picks the correct per-city stock
+   * table (DelhiWarehouseStock or BangaloreIncreffInventory) off the
+   * matched warehouse's fulfillment parent.
+   */
+  pincode?: string;
 }

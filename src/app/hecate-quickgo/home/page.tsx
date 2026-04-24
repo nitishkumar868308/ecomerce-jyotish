@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Zap, Play } from "lucide-react";
+import { Zap, Play, X } from "lucide-react";
 import { useCategories } from "@/services/categories";
-import { useProducts } from "@/services/products";
+import { useProductsFast } from "@/services/products";
 import { filterByPlatform } from "@/lib/products";
+import { ProductCard } from "@/components/store/product/ProductCard";
 import { useBanners, useVideoStories } from "@/services/banners";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { resolveAssetUrl } from "@/lib/assetUrl";
@@ -21,25 +22,40 @@ import "swiper/css";
 import "swiper/css/pagination";
 
 const features = [
-  { icon: "⚡", title: "Super Fast", desc: "Delivery in 10 minutes" },
+  { icon: "⚡", title: "Super Fast", desc: "Delivery in 1 Day" },
   { icon: "💰", title: "Best Prices", desc: "No hidden charges" },
   { icon: "✔️", title: "Fresh & Quality", desc: "100% quality assured" },
 ];
 
 export default function QuickGoHomePage() {
   const quickGoCity = useQuickGoStore((s) => s.city);
-  const { data: categories, isLoading: catLoading } = useCategories();
-  const { data: productsData, isLoading: prodLoading } = useProducts({
+  const quickGoPincode = useQuickGoStore((s) => s.pincode);
+  // Backend filters categories by the QuickGo platform flag + the
+  // shopper's city (via the Category→State relation), so we never
+  // render a category that's disabled for this location.
+  const { data: categories, isLoading: catLoading } = useCategories({
+    platform: "quickgo",
+    city: quickGoCity || undefined,
+  });
+  // Use the paginated /products/fast endpoint — same one the categories
+  // page uses — so the QuickGo warehouse + pincode filter applies
+  // consistently. The legacy /products route doesn't honour those
+  // filters, which was making the home grid show more products than the
+  // categories grid for the same location.
+  const { data: productsData, isLoading: prodLoading } = useProductsFast({
+    page: 1,
     limit: 8,
     platform: "quickgo",
-    // Pass the shopper's selected QuickGo city through to the backend so
-    // products can be filtered to those with stock in that city warehouse.
     city: quickGoCity || undefined,
+    pincode: quickGoPincode || undefined,
   });
   const { data: banners, isLoading: bannerLoading } = useBanners();
   const { data: videoStories } = useVideoStories();
   const { data: locations } = useLocationStates();
-  const products = filterByPlatform(productsData?.data, "quickgo");
+  const products = filterByPlatform(
+    productsData?.data?.products,
+    "quickgo",
+  );
 
   // Resolve the user's picked city back to every Location (State) row with that
   // city — any of those row IDs are a valid match for a banner's states list.
@@ -59,6 +75,7 @@ export default function QuickGoHomePage() {
   );
 
   const activeVideos = videoStories?.filter((v) => v.active) ?? [];
+  const [activeStoryVideo, setActiveStoryVideo] = useState<string | null>(null);
 
   return (
     <>
@@ -165,11 +182,44 @@ export default function QuickGoHomePage() {
             </h2>
             <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none">
               {activeVideos.map((video) => (
-                <VideoStoryCard key={video.id} video={video} />
+                <VideoStoryCard
+                  key={video.id}
+                  video={video}
+                  onPlay={() =>
+                    setActiveStoryVideo(resolveAssetUrl(video.url) || video.url)
+                  }
+                />
               ))}
             </div>
           </div>
         </section>
+      )}
+
+      {activeStoryVideo && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setActiveStoryVideo(null)}
+        >
+          <div
+            className="relative aspect-[9/16] w-full max-w-sm overflow-hidden rounded-2xl bg-black shadow-2xl sm:max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <video
+              src={activeStoryVideo}
+              autoPlay
+              controls
+              className="h-full w-full object-contain"
+            />
+            <button
+              type="button"
+              onClick={() => setActiveStoryVideo(null)}
+              aria-label="Close"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Categories */}
@@ -231,183 +281,127 @@ export default function QuickGoHomePage() {
         </section>
       ) : null}
 
-      {/* Featured Products */}
-      {prodLoading ? (
-        <section className="border-t border-[var(--border-primary)] py-8 sm:py-12">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <Skeleton height={24} width="30%" className="mb-6" />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 sm:gap-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} height={200} className="rounded-xl" />
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : products.length > 0 ? (
-        <TodaysPicks products={products} />
-      ) : null}
+      {/* Products — shuffled once per mount so a refresh feels fresh
+          without the grid reshuffling underneath the user during a
+          single session. Same card + grid the categories page uses so
+          the stock badge + URL routing + skeletons stay consistent. */}
+      {(prodLoading || products.length > 0) && (
+        <ProductsSection products={products} loading={prodLoading} />
+      )}
     </>
   );
 }
 
-/**
- * Today's Picks — replaces the flat "Popular Products" grid with a curated
- * hero + grid layout so a handful of products feel intentional instead of
- * sparse. First product is the hero card (double width + gradient halo),
- * the rest fall into a compact grid on the right.
- */
-function TodaysPicks({ products }: { products: any[] }) {
-  if (products.length === 0) return null;
-  const [hero, ...rest] = products;
-  const heroImg = resolveAssetUrl(
-    Array.isArray(hero.image) ? hero.image[0] : hero.images?.[0] || hero.image,
-  );
-  const heroHref = `/hecate-quickgo/product/${hero.slug || hero._id || hero.id}`;
+const PRODUCTS_PREVIEW_MAX = 10;
+
+function ProductsSection({
+  products,
+  loading,
+}: {
+  products: any[];
+  loading: boolean;
+}) {
+  // Fisher-Yates once per mount. Stable while the user is on the page —
+  // navigating around and coming back shows the same order — but a hard
+  // refresh produces a fresh layout. Ties to the ask: "har refresh pe
+  // shuffle".
+  const shuffled = React.useMemo(() => {
+    const arr = [...products];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products.length]);
+
+  // Home is a PREVIEW — a horizontal carousel of curated cards always
+  // feels the same whether the shopper has 1 product in stock or 50.
+  // The full catalogue lives on /categories. Cards are fixed-width so
+  // one stocked item doesn't stretch to fill the whole row, and extras
+  // beyond the preview cap stay reachable via the "See all" CTA at the
+  // tail of the scroll (+ the header link).
+  const preview = shuffled.slice(0, PRODUCTS_PREVIEW_MAX);
+  const hasOverflow = shuffled.length > preview.length;
 
   return (
-    <section className="border-t border-[var(--border-primary)] py-8 sm:py-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-6 flex items-end justify-between">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-primary)]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--accent-primary)]">
-              <Zap className="h-3 w-3" /> Hand-picked
-            </span>
-            <h2 className="mt-2 text-xl font-bold sm:text-2xl text-[var(--text-primary)]">
-              Today&apos;s Picks
+    <section className="relative py-6 sm:py-8">
+      {/* Subtle brand wash behind the section so Products reads as a
+          first-class surface rather than a plain list. Sits under
+          everything via -z-0. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-r from-[var(--accent-primary)]/[0.06] via-transparent to-emerald-500/[0.06]"
+      />
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="mb-4 flex items-center justify-between gap-3 sm:mb-5">
+          <div className="flex items-center gap-2">
+            <span className="h-4 w-1 rounded-full bg-[var(--accent-primary)]" />
+            <h2 className="text-base font-semibold text-[var(--text-primary)] sm:text-lg">
+              Products
             </h2>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Fresh finds shortlisted by our team, ready in minutes.
-            </p>
+            <span className="hidden text-xs text-[var(--text-muted)] sm:inline">
+              · ready in minutes
+            </span>
+            {!loading && shuffled.length > 0 && (
+              <span className="ml-1 rounded-full bg-[var(--accent-primary)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent-primary)]">
+                {shuffled.length}
+              </span>
+            )}
           </div>
           <Link
             href="/hecate-quickgo/categories"
-            className="hidden shrink-0 text-sm font-medium text-[var(--accent-primary)] hover:underline sm:inline"
+            className="shrink-0 text-xs font-medium text-[var(--accent-primary)] hover:underline sm:text-sm"
           >
-            See everything →
+            See all →
           </Link>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-          {/* Hero pick */}
-          <Link
-            href={heroHref}
-            className="group relative flex h-full flex-col justify-end overflow-hidden rounded-2xl border border-[var(--border-primary)] bg-gradient-to-br from-[var(--accent-primary)]/10 via-[var(--bg-card)] to-emerald-500/10 p-5 sm:p-6 min-h-[260px]"
-          >
-            <div className="absolute inset-0 -z-0 opacity-40 transition-opacity group-hover:opacity-60">
-              {heroImg ? (
-                <Image
-                  src={heroImg}
-                  alt={hero.name}
-                  fill
-                  className="object-contain p-8 transition-transform duration-500 group-hover:scale-105"
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  unoptimized
-                />
-              ) : null}
-            </div>
-            <div className="relative">
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--accent-primary)] shadow-sm backdrop-blur dark:bg-black/50">
-                Editor&apos;s choice
-              </span>
-              <h3 className="mt-2 text-lg font-bold leading-tight text-[var(--text-primary)] sm:text-xl">
-                {hero.name}
-              </h3>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-2xl font-extrabold text-[var(--accent-primary)]">
-                  {hero.currencySymbol || "₹"}
-                  {hero.price}
-                </span>
-                {hero.MRP && Number(hero.MRP) > Number(hero.price) && (
-                  <span className="text-sm text-[var(--text-muted)] line-through">
-                    {hero.currencySymbol || "₹"}
-                    {hero.MRP}
-                  </span>
-                )}
+        {loading ? (
+          <div className="flex gap-3 overflow-hidden sm:gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="w-[160px] shrink-0 sm:w-[200px] md:w-[220px]"
+              >
+                <Skeleton className="aspect-square w-full rounded-xl" />
+                <div className="mt-2 space-y-2">
+                  <Skeleton height={12} width="50%" />
+                  <Skeleton height={14} width="80%" />
+                </div>
               </div>
-            </div>
-          </Link>
-
-          {/* Secondary picks */}
-          <div className="grid grid-cols-2 gap-3">
-            {rest.slice(0, 4).map((p: any) => {
-              const rawImg = Array.isArray(p.image)
-                ? p.image[0]
-                : p.images?.[0] || p.image;
-              const resolved = resolveAssetUrl(rawImg);
-              return (
-                <Link
-                  key={p._id || p.id}
-                  href={`/hecate-quickgo/product/${p.slug || p._id || p.id}`}
-                  className="group flex flex-col rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-3 transition-all hover:-translate-y-0.5 hover:border-[var(--accent-primary)]/40 hover:shadow-md"
-                >
-                  {resolved ? (
-                    <div className="relative mb-2 h-24 w-full overflow-hidden rounded-lg bg-[var(--bg-secondary)]">
-                      <Image
-                        src={resolved}
-                        alt={p.name}
-                        fill
-                        className="object-contain transition-transform duration-300 group-hover:scale-105"
-                        sizes="(max-width: 640px) 50vw, 20vw"
-                        unoptimized
-                      />
-                    </div>
-                  ) : (
-                    <div className="mb-2 flex h-24 w-full items-center justify-center rounded-lg bg-[var(--accent-primary)]/5 text-2xl">
-                      {p.name?.[0]}
-                    </div>
-                  )}
-                  <h3 className="line-clamp-2 text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-primary)]">
-                    {p.name}
-                  </h3>
-                  <p className="mt-auto pt-1 text-sm font-bold text-[var(--accent-primary)]">
-                    {p.currencySymbol || "₹"}
-                    {p.price}
-                  </p>
-                </Link>
-              );
-            })}
+            ))}
           </div>
-        </div>
-
-        {rest.length > 4 && (
-          <div className="mt-4 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            {rest.slice(4).map((p: any) => {
-              const rawImg = Array.isArray(p.image)
-                ? p.image[0]
-                : p.images?.[0] || p.image;
-              const resolved = resolveAssetUrl(rawImg);
-              return (
-                <Link
-                  key={p._id || p.id}
-                  href={`/hecate-quickgo/product/${p.slug || p._id || p.id}`}
-                  className="group flex w-[150px] shrink-0 flex-col rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-2 transition-all hover:-translate-y-0.5 hover:shadow-md"
+        ) : preview.length === 0 ? null : (
+          <div className="-mx-4 px-4 sm:-mx-6 sm:px-6">
+            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 sm:gap-4 [scrollbar-width:thin]">
+              {preview.map((p) => (
+                <div
+                  key={p.id}
+                  className="w-[160px] shrink-0 snap-start sm:w-[200px] md:w-[220px]"
                 >
-                  {resolved ? (
-                    <div className="relative mb-2 h-20 w-full overflow-hidden rounded-lg bg-[var(--bg-secondary)]">
-                      <Image
-                        src={resolved}
-                        alt={p.name}
-                        fill
-                        className="object-contain"
-                        sizes="150px"
-                        unoptimized
-                      />
-                    </div>
-                  ) : (
-                    <div className="mb-2 flex h-20 w-full items-center justify-center rounded-lg bg-[var(--accent-primary)]/5">
-                      {p.name?.[0]}
-                    </div>
-                  )}
-                  <h4 className="line-clamp-2 text-[11px] font-medium leading-tight text-[var(--text-primary)]">
-                    {p.name}
-                  </h4>
-                  <p className="mt-1 text-xs font-bold text-[var(--accent-primary)]">
-                    {p.currencySymbol || "₹"}
-                    {p.price}
-                  </p>
+                  <ProductCard product={p} />
+                </div>
+              ))}
+
+              {/* Tail "See more" card — appears only when there's more
+                  catalogue past the preview cap. Shaped like the other
+                  cards so the row reads as one continuous rail. */}
+              {hasOverflow && (
+                <Link
+                  href="/hecate-quickgo/categories"
+                  className="group flex w-[160px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/5 p-4 text-center text-sm font-medium text-[var(--accent-primary)] transition-colors hover:border-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10 sm:w-[200px] md:w-[220px]"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-primary)]/10 transition-transform group-hover:scale-110">
+                    <Zap className="h-5 w-5" />
+                  </span>
+                  <span>See all {shuffled.length} products</span>
+                  <span className="text-[10px] font-normal text-[var(--text-muted)]">
+                    Browse the full range
+                  </span>
                 </Link>
-              );
-            })}
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -415,49 +409,52 @@ function TodaysPicks({ products }: { products: any[] }) {
   );
 }
 
-/* Video Story Card with thumbnail and playback */
-function VideoStoryCard({ video }: { video: { id: number; title: string; url: string } }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
-
-  const togglePlay = () => {
-    if (!videoRef.current) return;
-    if (playing) {
-      videoRef.current.pause();
-    } else {
-      videoRef.current.play();
-    }
-    setPlaying(!playing);
-  };
+/**
+ * Story tile — the video itself is the thumbnail (muted/looping/autoplay),
+ * matching the wizard storefront. Clicking opens the full modal (owner
+ * component) with sound and controls.
+ */
+function VideoStoryCard({
+  video,
+  onPlay,
+}: {
+  video: { id: number; title: string; url: string; thumbnail?: string };
+  onPlay: () => void;
+}) {
+  const src = resolveAssetUrl(video.url) || video.url;
+  const poster = video.thumbnail ? resolveAssetUrl(video.thumbnail) : undefined;
 
   return (
-    <div className="shrink-0 w-[140px] sm:w-[160px]">
-      <div
-        className="relative aspect-[9/16] w-full overflow-hidden rounded-xl border-2 border-[var(--accent-primary)]/30 bg-[var(--bg-secondary)] cursor-pointer"
-        onClick={togglePlay}
-      >
+    <button
+      type="button"
+      onClick={onPlay}
+      className="group shrink-0 w-[140px] sm:w-[160px] focus:outline-none"
+    >
+      <div className="relative aspect-[9/16] w-full overflow-hidden rounded-xl border-2 border-[var(--accent-primary)]/30 bg-[var(--bg-secondary)] transition-transform duration-300 group-hover:scale-[1.03]">
         <video
-          ref={videoRef}
-          src={video.url}
-          className="h-full w-full object-cover"
-          preload="metadata"
+          src={src}
+          poster={poster}
+          className="absolute inset-0 h-full w-full object-cover"
+          preload="auto"
           playsInline
           loop
           muted
-          onEnded={() => setPlaying(false)}
+          autoPlay
         />
-        {/* Play/Pause overlay */}
-        {!playing && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-lg">
-              <Play className="h-5 w-5 text-[var(--accent-primary)] ml-0.5" fill="currentColor" />
-            </div>
+        {/* Play glyph — fades out on hover to let the preview breathe. */}
+        <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-lg">
+            <Play
+              className="ml-0.5 h-4 w-4 text-[var(--accent-primary)]"
+              fill="currentColor"
+            />
           </div>
-        )}
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
       </div>
-      <p className="mt-2 text-center text-xs font-medium text-[var(--text-primary)] line-clamp-1">
+      <p className="mt-2 line-clamp-1 text-center text-xs font-medium text-[var(--text-primary)]">
         {video.title}
       </p>
-    </div>
+    </button>
   );
 }

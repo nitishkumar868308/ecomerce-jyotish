@@ -11,6 +11,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Calendar, User, ArrowRight, BookOpen, Clock, Search } from "lucide-react";
 import type { Blog } from "@/types/blog";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 
 export default function BlogPage() {
   const [page, setPage] = useState(1);
@@ -165,7 +166,8 @@ export default function BlogPage() {
 }
 
 function FeaturedCard({ post }: { post: Blog }) {
-  const cover = post.image || post.thumbnail || post.images?.[0];
+  const rawCover = post.image || post.thumbnail || post.images?.[0];
+  const cover = rawCover ? resolveAssetUrl(rawCover) || rawCover : undefined;
   const author = post.authorName || post.author;
   return (
     <Link
@@ -236,7 +238,8 @@ function FeaturedCard({ post }: { post: Blog }) {
 }
 
 function BlogCard({ post }: { post: Blog }) {
-  const cover = post.image || post.thumbnail || post.images?.[0];
+  const rawCover = post.image || post.thumbnail || post.images?.[0];
+  const cover = rawCover ? resolveAssetUrl(rawCover) || rawCover : undefined;
   const author = post.authorName || post.author;
   return (
     <Link

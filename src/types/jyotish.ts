@@ -74,17 +74,12 @@ export interface ChatMessage {
 
 export interface AdCampaign {
   id: number;
-  astrologerId: number;
-  astrologer?: Astrologer;
   title: string;
-  description?: string;
-  image?: string;
-  budget: number;
-  spent: number;
-  status: "ACTIVE" | "PAUSED" | "ENDED";
-  startDate: string;
-  endDate: string;
+  price: number;
+  capacity: number;
+  active: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProfileEditRequest {
@@ -118,8 +113,6 @@ export interface JyotishSlot {
 
 export interface FreeConsultationOffer {
   id: number;
-  astrologerId: number;
-  astrologer?: Astrologer;
   title: string;
   description?: string;
   astrologerAmount: number;
@@ -130,4 +123,5 @@ export interface FreeConsultationOffer {
   endDate?: string;
   active: boolean;
   createdAt: string;
+  updatedAt?: string;
 }

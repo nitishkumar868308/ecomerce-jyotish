@@ -119,40 +119,79 @@ export default function OrdersPage() {
   };
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "orderNumber", label: "Order #", sortable: true },
     {
-      key: "user",
+      // 1-based serial. Pagination-aware — (page-1) * limit + idx + 1.
+      key: "__serial",
+      label: "#",
+      render: (_v, _r, i) => (
+        <span className="font-medium text-[var(--text-secondary)]">
+          {(page - 1) * 20 + (i ?? 0) + 1}
+        </span>
+      ),
+    },
+    {
+      key: "orderNumber",
+      label: "Order #",
+      sortable: true,
+      render: (val) => (
+        <span className="font-mono text-xs">{(val as string) ?? "—"}</span>
+      ),
+    },
+    {
+      // Customer column now shows the SHIPPING name/email — admins care
+      // about who's receiving the parcel more than the account owner
+      // (gifts etc.). Falls back to account fields when shipping is
+      // empty.
+      key: "shippingName",
       label: "Customer",
       render: (val, row) => {
-        const user = val as { name: string; email?: string } | undefined;
+        const shipName =
+          (val as string) ??
+          (row.userName as string) ??
+          ((row.user as any)?.name as string) ??
+          "—";
+        const email =
+          (row.userEmail as string) ??
+          ((row.user as any)?.email as string) ??
+          "";
+        const phone = (row.shippingPhone as string) ?? (row.userPhone as string);
         return (
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-              {user?.name ?? (row.customerName as string) ?? "--"}
+              {shipName}
             </p>
             <p className="truncate text-xs text-[var(--text-muted)]">
-              {user?.email ?? (row.customerEmail as string) ?? ""}
+              {email}
             </p>
+            {phone && (
+              <p className="truncate text-[11px] text-[var(--text-muted)]">
+                {phone}
+              </p>
+            )}
           </div>
         );
       },
     },
     {
-      key: "platform",
+      key: "orderBy",
       label: "Source",
       render: (val, row) => {
         const raw = String(
-          val ?? row.source ?? row.purchasePlatform ?? "wizard",
+          val ?? row.platform ?? row.source ?? row.purchasePlatform ?? "wizard",
         ).toLowerCase();
         const cfg = PLATFORM_BADGE[raw] ?? PLATFORM_BADGE.wizard;
         return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
       },
     },
     {
-      key: "total",
+      key: "totalAmount",
       label: "Total",
       sortable: true,
-      render: (val) => `₹${Number(val ?? 0).toLocaleString()}`,
+      render: (val, row) => {
+        const amt = Number(val ?? row.total ?? 0);
+        const sym = (row.currencySymbol as string) ?? "₹";
+        return `${sym}${amt.toLocaleString("en-IN")}`;
+      },
     },
     {
       key: "status",
@@ -175,7 +214,7 @@ export default function OrdersPage() {
       label: "Date",
       sortable: true,
       render: (val) =>
-        val ? new Date(val as string).toLocaleDateString() : "--",
+        val ? new Date(val as string).toLocaleDateString("en-IN") : "--",
     },
     {
       key: "id",
@@ -187,6 +226,10 @@ export default function OrdersPage() {
               <Eye className="h-4 w-4" />
             </Button>
           </Link>
+          {/* Inline edit modal is temporarily disabled — editing + the
+              additional-payment flow both live on the detail page
+              (/admin/orders/[id]) now. Leaving the code for quick
+              re-enable if we want a list-level shortcut later.
           <Button
             variant="ghost"
             size="sm"
@@ -195,6 +238,7 @@ export default function OrdersPage() {
           >
             <Edit className="h-4 w-4" />
           </Button>
+          */}
         </div>
       ),
     },

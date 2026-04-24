@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   ShoppingBag,
@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useCartStore } from "@/stores/useCartStore";
 import { useUIStore } from "@/stores/useUIStore";
+import { useQuickGoStore } from "@/stores/useQuickGoStore";
+import { useCountryStore } from "@/stores/useCountryStore";
 import { useCart } from "@/services/cart";
 import { useCategories, useSubcategories } from "@/services/categories";
 import { useHeaders } from "@/services/banners";
@@ -28,10 +30,22 @@ import { ROUTES } from "@/config/routes";
 import { resolveMenuHref } from "@/lib/menuResolver";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import type { Category, Subcategory } from "@/types/category";
+import { HeaderSearchAutocomplete } from "./HeaderSearchAutocomplete";
 
 type SiteVariant = "wizard" | "quickgo" | "jyotish";
 
-function getSiteVariant(pathname: string): SiteVariant {
+function getSiteVariant(
+  pathname: string,
+  platformOverride?: string | null,
+): SiteVariant {
+  // Checkout (and other shared-chrome pages) live under /(store), so the
+  // pathname alone doesn't say whether the shopper came from QuickGo. The
+  // cart drawer appends `?platform=quickgo` on those transitions — honour
+  // it so the header count + logo track the basket the shopper is about
+  // to pay for.
+  if (platformOverride === "quickgo" || platformOverride === "hecate-quickgo") {
+    return "quickgo";
+  }
   if (pathname.startsWith("/hecate-quickgo")) return "quickgo";
   if (pathname.startsWith("/jyotish")) return "jyotish";
   return "wizard";
@@ -78,24 +92,58 @@ const HEADER_CONFIG: Record<SiteVariant, {
 
 export function Header({ className }: { className?: string }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const variant = getSiteVariant(pathname);
+  const variant = getSiteVariant(
+    pathname,
+    searchParams?.get("platform")?.toLowerCase(),
+  );
   const headerCfg = HEADER_CONFIG[variant];
   const { user, isLoggedIn } = useAuthStore();
   const toggleCart = useCartStore((s) => s.toggleCart);
-  const { data: cartItems } = useCart();
-  const itemCount = cartItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) ?? 0;
+  const { data: cart } = useCart();
+  // Count only items that belong to this storefront — a shopper browsing
+  // wizard shouldn't see their QuickGo basket count on the wizard header.
+  // Logged-out shoppers can't have a cart, so the count stays at 0 naturally
+  // (useCart is disabled when !isLoggedIn).
+  const itemCount = !isLoggedIn
+    ? 0
+    : cart?.items?.reduce((sum, item) => {
+        const p = String(item.purchasePlatform ?? "").toLowerCase();
+        const normalised =
+          p === "quickgo" || p === "hecate-quickgo" ? "quickgo" : "wizard";
+        const target = variant === "quickgo" ? "quickgo" : "wizard";
+        if (normalised !== target) return sum;
+        return sum + (item.quantity || 1);
+      }, 0) ?? 0;
   const { mobileMenuOpen, setMobileMenuOpen, searchOpen, setSearchOpen, openModal } =
     useUIStore();
 
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const megaMenuRef = useRef<HTMLDivElement>(null);
   const megaMenuTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const { data: categories } = useCategories();
-  const { data: subcategories } = useSubcategories(activeCategory?.id);
+  // Header mega-menu: when the shopper is on QuickGo, scope
+  // category/subcategory lookups to the QuickGo platform + their
+  // picked city so the menu never shows a category that wouldn't
+  // render on a click. Wizard header gets the unfiltered list (no
+  // opts passed = no platform/city query params).
+  const quickGoCityForMenu = useQuickGoStore((s) => s.city);
+  // QuickGo is an India-only surface. Hide the cross-site entry point
+  // whenever the shopper has switched to a non-India storefront so we
+  // don't tease a service they can't actually use.
+  const countryCode = useCountryStore((s) => s.code);
+  const isIndiaCountry = (countryCode ?? "IND").toUpperCase() === "IND";
+  const categoryScope =
+    variant === "quickgo"
+      ? { platform: "quickgo" as const, city: quickGoCityForMenu || undefined }
+      : undefined;
+  const { data: categories } = useCategories(categoryScope);
+  const { data: subcategories } = useSubcategories(
+    activeCategory?.id,
+    categoryScope,
+  );
   const { data: headerMenuItems } = useHeaders();
 
   // Close mobile menu on route change
@@ -123,15 +171,6 @@ export function Header({ className }: { className?: string }) {
     }, 200);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`${headerCfg.searchPath}?search=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchOpen(false);
-      setSearchQuery("");
-      setMobileMenuOpen(false);
-    }
-  };
 
   // Build nav links from API header menu items. "Enter the Mall" is rendered
   // separately as the branded mega-menu trigger (with Store icon), so we drop
@@ -200,21 +239,14 @@ export function Header({ className }: { className?: string }) {
           </Link>
 
           {/* Center: Search Bar (Desktop) */}
-          <form
-            onSubmit={handleSearch}
-            className="hidden lg:flex items-center flex-1 max-w-xl mx-8"
-          >
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products, categories..."
-                className="w-full rounded-full border border-[var(--border-primary)] bg-[var(--bg-secondary)] py-2.5 pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/20 transition-all"
-              />
-            </div>
-          </form>
+          <div className="hidden lg:flex items-center flex-1 max-w-xl mx-8">
+            <HeaderSearchAutocomplete
+              variant={variant === "quickgo" ? "quickgo" : "wizard"}
+              searchPath={headerCfg.searchPath}
+              layout="desktop"
+              onNavigated={() => setMobileMenuOpen(false)}
+            />
+          </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-1 sm:gap-2">
@@ -253,11 +285,21 @@ export function Header({ className }: { className?: string }) {
                 >
                   {(user.avatar || user.profileImage) ? (
                     <Image
-                      src={user.avatar || user.profileImage || ""}
+                      // Profile images come back as storage-relative paths
+                      // (e.g. /uploads/user-profile/xyz.jpg). Pass them
+                      // through the asset resolver so Next's <Image> gets
+                      // an absolute, whitelisted URL.
+                      src={
+                        resolveAssetUrl(user.avatar || user.profileImage || "") ||
+                        user.avatar ||
+                        user.profileImage ||
+                        ""
+                      }
                       alt={user.name}
                       width={32}
                       height={32}
                       className="h-8 w-8 rounded-full object-cover"
+                      unoptimized
                     />
                   ) : (
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] text-xs font-bold text-white">
@@ -505,7 +547,7 @@ export function Header({ className }: { className?: string }) {
           <div className="flex-1" />
 
           {/* Cross-site link: show opposite site's logo/link based on current variant */}
-          {variant !== "quickgo" && (
+          {variant !== "quickgo" && isIndiaCountry && (
             <Link
               href={ROUTES.QUICKGO.HOME}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors rounded-lg"
@@ -545,24 +587,22 @@ export function Header({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* Mobile: Search bar (expandable) */}
+      {/* Mobile: Search bar (expandable). Uses the same autocomplete
+          component as desktop — dropdown anchors to the drawer's width. */}
       <div
         className={cn(
-          "overflow-hidden border-b border-[var(--border-primary)] transition-all duration-300 lg:hidden",
-          searchOpen ? "max-h-20 py-3 px-4" : "max-h-0 py-0 px-4"
+          "overflow-visible border-b border-[var(--border-primary)] transition-all duration-300 lg:hidden",
+          searchOpen ? "max-h-[80vh] py-3 px-4" : "max-h-0 py-0 px-4",
         )}
       >
-        <form onSubmit={handleSearch} className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search products..."
-            className="w-full rounded-full border border-[var(--border-primary)] bg-[var(--bg-secondary)] py-2.5 pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent-primary)] focus:outline-none"
-            autoFocus={searchOpen}
+        {searchOpen && (
+          <HeaderSearchAutocomplete
+            variant={variant === "quickgo" ? "quickgo" : "wizard"}
+            searchPath={headerCfg.searchPath}
+            layout="mobile"
+            onNavigated={() => setSearchOpen(false)}
           />
-        </form>
+        )}
       </div>
 
       {/* Mobile: Left Drawer Overlay */}
@@ -678,7 +718,7 @@ export function Header({ className }: { className?: string }) {
 
             {/* Cross-site links: show opposite site based on current variant */}
             <div className="px-4 py-2 space-y-1">
-              {variant !== "quickgo" && (
+              {variant !== "quickgo" && isIndiaCountry && (
                 <Link
                   href={ROUTES.QUICKGO.HOME}
                   onClick={() => setMobileMenuOpen(false)}
@@ -727,11 +767,19 @@ export function Header({ className }: { className?: string }) {
                   <div className="flex items-center gap-3 px-3 py-2">
                     {(user.avatar || user.profileImage) ? (
                       <Image
-                        src={user.avatar || user.profileImage || ""}
+                        src={
+                          resolveAssetUrl(
+                            user.avatar || user.profileImage || "",
+                          ) ||
+                          user.avatar ||
+                          user.profileImage ||
+                          ""
+                        }
                         alt={user.name}
                         width={36}
                         height={36}
                         className="h-9 w-9 rounded-full object-cover"
+                        unoptimized
                       />
                     ) : (
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] text-xs font-bold text-white">

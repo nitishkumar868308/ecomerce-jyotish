@@ -3,10 +3,12 @@
 import React from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { WalletSection } from "@/components/user/WalletSection";
+import { JyotishSubNav } from "@/components/user/JyotishSubNav";
 
 export default function WalletPage() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div>
+      <JyotishSubNav />
       <PageHeader
         title="Wallet"
         description="View your balance and transaction history"

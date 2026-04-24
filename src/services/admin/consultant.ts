@@ -12,11 +12,13 @@ import { api, ENDPOINTS } from "@/lib/api";
 
 export interface ConsultantService {
   id: number;
-  name: string;
-  description?: string;
+  title: string;
+  shortDesc?: string;
+  longDesc?: string;
   image?: string;
-  price: number;
-  isActive: boolean;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ConsultantDuration {
@@ -27,11 +29,11 @@ export interface ConsultantDuration {
 }
 
 export interface ServicePayload {
-  name: string;
-  description?: string;
+  title: string;
+  shortDesc?: string;
+  longDesc?: string;
   image?: string;
-  price: number;
-  isActive: boolean;
+  active: boolean;
 }
 
 export interface DurationPayload {

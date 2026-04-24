@@ -79,11 +79,6 @@ export default function TrendingProducts() {
                         <ShoppingCart className="h-8 w-8" />
                       </div>
                     )}
-                    {Number(product.MRP) > 0 && Number(product.MRP) > Number(product.price) && (
-                      <span className="absolute top-2 left-2 rounded-full bg-[var(--accent-danger)] px-2 py-0.5 text-[10px] font-bold text-white">
-                        -{Math.round(((Number(product.MRP) - Number(product.price)) / Number(product.MRP)) * 100)}%
-                      </span>
-                    )}
                   </div>
                   <div className="mt-2.5 space-y-1">
                     <h3 className="text-sm font-medium text-[var(--text-primary)] line-clamp-1 group-hover:text-[var(--accent-primary)] transition-colors">
@@ -93,11 +88,6 @@ export default function TrendingProducts() {
                       <span className="text-sm font-bold text-[var(--accent-primary)]">
                         {product.currencySymbol || ""}{product.price}
                       </span>
-                      {Number(product.MRP) > Number(product.price) && (
-                        <span className="text-xs text-[var(--text-muted)] line-through">
-                          {product.currencySymbol || ""}{product.MRP}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </Link>

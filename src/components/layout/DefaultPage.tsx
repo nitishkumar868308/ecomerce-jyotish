@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Topbar from "./Topbar";
 import Header from "./Header";
@@ -14,8 +15,25 @@ interface DefaultPageProps {
 }
 
 export function DefaultPage({ children, className }: DefaultPageProps) {
+  // Apply the QuickGo theme at the frame level when the shopper arrived
+  // here from QuickGo (the cart drawer tags checkout with
+  // `?platform=quickgo`). Scoped here so Header/Topbar/Footer all re-read
+  // the teal tokens — not just the main content.
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const platform = searchParams?.get("platform")?.toLowerCase();
+  const isQuickGoFrame =
+    pathname?.startsWith("/hecate-quickgo") ||
+    platform === "quickgo" ||
+    platform === "hecate-quickgo";
+
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div
+      className={cn(
+        "flex min-h-screen flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]",
+        isQuickGoFrame && "quickgo-theme",
+      )}
+    >
       <Topbar />
       <Header />
 

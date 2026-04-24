@@ -24,6 +24,7 @@ export const ROUTES = {
 
   // Auth
   RESET_PASSWORD: "/reset-password",
+  RESET_PASSWORD_JYOTISH: "/reset-password-jyotish",
   REGISTER_JYOTISH: "/register-jyotish",
   LOGIN_JYOTISH: "/login-jyotish",
 
@@ -74,12 +75,14 @@ export const ROUTES = {
     LOCATION_STATE: "/admin/location-state",
     WAREHOUSE_LOCATION: "/admin/warehouse-location",
     SEND_TO_WAREHOUSE: "/admin/send-to-warehouse",
+    PRINT_LABELS: "/admin/warehouse/print-labels",
     DELHI_STORE: "/admin/delhi-store",
     BANGALORE_INVENTORY: "/admin/bangalore-inventory",
     SKU_MAPPING: "/admin/sku-mapping",
     JYOTISH_AD_CAMPAIGN: "/admin/jyotish/ad-campaign",
     JYOTISH_ASTROLOGER_DETAIL: "/admin/jyotish/astrologer-detail",
     JYOTISH_PROFILE_EDIT_REQUESTS: "/admin/jyotish/profile-edit-requests",
+    JYOTISH_ASTROLOGER_CHATS: "/admin/jyotish/astrologer-chats",
     JYOTISH_TAX_SETTINGS: "/admin/jyotish/tax-settings",
     JYOTISH_SERVICES: "/admin/jyotish/services",
     JYOTISH_DURATIONS: "/admin/jyotish/durations",

@@ -118,18 +118,44 @@ export function QuickGoLandingModal() {
 
   if (!mounted) return null;
 
-  // Compact pill the user can click to re-open / change location later.
+  // Compact "change location" pill. On mobile it has to sit above the
+  // bottom nav without covering the tabs — so we park it top-right as a
+  // collapsed pin-only circle that expands into the full city+pincode
+  // label on hover/focus/tap. Desktop gets the full pill bottom-left
+  // where it has room.
   const pill = city && pincode && !open && (
     <button
       type="button"
       onClick={handleChangeLocation}
-      className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[var(--border-primary)] bg-[var(--bg-card)] px-4 py-2 text-xs font-medium text-[var(--text-primary)] shadow-lg transition-all hover:border-[var(--accent-primary)] sm:left-4 sm:translate-x-0"
+      aria-label={`Change location — currently ${city}, ${pincode}`}
+      className={cn(
+        "group fixed z-40 flex items-center gap-2 rounded-full border border-[var(--border-primary)] bg-[var(--bg-card)] text-xs font-medium text-[var(--text-primary)] shadow-lg transition-all hover:border-[var(--accent-primary)] focus:border-[var(--accent-primary)] focus:outline-none",
+        // Mobile: top-right, collapsed to an icon. Tap/focus/hover pops
+        // the label out to the left (max-w grows). Stays above the
+        // bottom MobileNav (bottom-16 is out of its way).
+        "right-3 top-3 h-9 w-9 justify-center overflow-hidden p-0",
+        "hover:w-auto hover:justify-start hover:px-3 hover:py-2",
+        "focus-within:w-auto focus-within:justify-start focus-within:px-3 focus-within:py-2",
+        // Desktop: bottom-left like before, always expanded.
+        "md:right-auto md:top-auto md:bottom-4 md:left-4 md:h-auto md:w-auto md:justify-start md:gap-2 md:px-4 md:py-2",
+      )}
     >
-      <MapPin className="h-3.5 w-3.5 text-[var(--accent-primary)]" />
-      <span className="max-w-[180px] truncate">
-        {city} · {pincode}
+      <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--accent-primary)]" />
+      <span
+        className={cn(
+          "whitespace-nowrap",
+          // Mobile: label collapses to width 0 until hover/focus opens it.
+          "hidden max-w-0 overflow-hidden transition-[max-width] duration-200",
+          "group-hover:inline-block group-hover:max-w-[200px]",
+          "group-focus-within:inline-block group-focus-within:max-w-[200px]",
+          "md:inline-block md:max-w-[200px]",
+        )}
+      >
+        <span className="truncate">
+          {city} · {pincode}
+        </span>
+        <span className="ml-1 text-[var(--text-muted)]">Change</span>
       </span>
-      <span className="text-[var(--text-muted)]">Change</span>
     </button>
   );
 

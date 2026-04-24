@@ -1,43 +1,61 @@
 "use client";
 
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { Star, ArrowRight } from "lucide-react";
-import { useJyotishChatSessions } from "@/services/jyotish/sessions";
+import { Star, ArrowRight, Sparkles } from "lucide-react";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useMyChatHistory } from "@/services/jyotish/sessions";
+import { useWalletBalance } from "@/services/wallet";
 import { usePrice } from "@/hooks/usePrice";
-import type { ChatSession } from "@/types/jyotish";
+import { JyotishSubNav } from "@/components/user/JyotishSubNav";
+import { ReviewModal } from "@/components/jyotish/chat/ReviewModal";
+import { resolveAssetUrl } from "@/lib/assetUrl";
+import { cn } from "@/lib/utils";
 
 const statusCls: Record<string, string> = {
-  ACTIVE: "bg-green-500/10 text-green-400",
-  ENDED: "bg-blue-500/10 text-blue-400",
-  PENDING: "bg-yellow-500/10 text-yellow-400",
-  active: "bg-green-500/10 text-green-400",
-  completed: "bg-blue-500/10 text-blue-400",
-  pending: "bg-yellow-500/10 text-yellow-400",
+  ENDED: "bg-emerald-500/15 text-emerald-400",
+  REJECTED: "bg-red-500/15 text-red-400",
 };
 
+/**
+ * Shopper's consultation history. Pulls from
+ * `GET /jyotish/chat/my-history?userId=X` which returns ENDED sessions
+ * with their astrologer summary + any attached review. Un-reviewed
+ * ENDED sessions get a "Rate session" CTA that opens the same
+ * ReviewModal the chat-end flow surfaces.
+ */
 export default function UserJyotishPage() {
-  const { data, isLoading } = useJyotishChatSessions();
+  const { user } = useAuthStore();
+  const { data, isLoading } = useMyChatHistory(user?.id);
+  const { data: walletData } = useWalletBalance();
   const { format } = usePrice();
+  const [reviewFor, setReviewFor] = useState<any | null>(null);
 
-  const list: ChatSession[] = (data ?? []) as ChatSession[];
-  const totalSpent = list.reduce(
-    (acc, s) => acc + Number(s.grossAmount ?? s.totalAmount ?? 0),
-    0,
+  const list: Array<any> = (data ?? []) as Array<any>;
+  const walletBalance = Number(
+    (walletData as { balance?: number | string } | undefined)?.balance ?? 0,
   );
-  const totalSessions = list.length;
-  const activeSessions = list.filter(
-    (s) => String(s.status ?? "").toUpperCase() === "ACTIVE",
-  ).length;
+
+  const totals = useMemo(() => {
+    return list.reduce(
+      (acc, s) => {
+        acc.spent += Number(s.totalCharged ?? 0);
+        return acc;
+      },
+      { spent: 0 },
+    );
+  }, [list]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div>
+      <JyotishSubNav />
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">
             My Jyotish Consultations
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Your chat sessions with astrologers.
+            Every chat you&rsquo;ve had with an astrologer, with duration and what you paid.
           </p>
         </div>
         <Link
@@ -49,30 +67,13 @@ export default function UserJyotishPage() {
       </div>
 
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Total Consultations
-          </p>
-          <p className="mt-2 text-2xl font-bold text-[var(--accent-primary)]">
-            {totalSessions}
-          </p>
-        </div>
-        <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Active Now
-          </p>
-          <p className="mt-2 text-2xl font-bold text-[var(--accent-primary)]">
-            {activeSessions}
-          </p>
-        </div>
-        <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Total Spent
-          </p>
-          <p className="mt-2 text-2xl font-bold text-[var(--accent-primary)]">
-            {format(totalSpent)}
-          </p>
-        </div>
+        <StatCard label="Total Consultations" value={list.length.toLocaleString()} />
+        <StatCard label="Wallet Balance" value={format(walletBalance)} />
+        <StatCard
+          label="Total Spent"
+          value={format(totals.spent)}
+          accent
+        />
       </div>
 
       {isLoading ? (
@@ -88,76 +89,195 @@ export default function UserJyotishPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--bg-secondary)] text-left">
-              <tr>
-                {["Astrologer", "Date", "Duration", "Amount", "Status", "Action"].map(
-                  (h) => (
+        <div className="overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="bg-[var(--bg-secondary)] text-left">
+                <tr>
+                  {[
+                    "Astrologer",
+                    "Date",
+                    "Duration",
+                    "Paid",
+                    "Status",
+                    "Review",
+                  ].map((h) => (
                     <th
                       key={h}
                       className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]"
                     >
                       {h}
                     </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-primary)]">
-              {list.map((s) => {
-                const gross = s.grossAmount ?? s.totalAmount ?? 0;
-                const status = String(s.status ?? "unknown");
-                const up = status.toUpperCase();
-                return (
-                  <tr key={s.id} className="hover:bg-[var(--bg-card-hover)]">
-                    <td className="whitespace-nowrap px-4 py-3 font-medium">
-                      <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 text-[var(--jy-accent-gold)]" />
-                        {s.astrologer?.name ?? "Astrologer"}
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[var(--text-secondary)]">
-                      {s.createdAt
-                        ? new Date(s.createdAt).toLocaleDateString()
-                        : "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[var(--text-secondary)]">
-                      {s.duration ? `${s.duration} min` : "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      {gross > 0 ? format(gross) : "Free"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          statusCls[status] || "bg-gray-500/10 text-gray-400"
-                        }`}
-                      >
-                        {status}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      {up === "ACTIVE" ? (
-                        <Link
-                          href={`/jyotish/chat/${s.id}`}
-                          className="text-xs font-medium text-[var(--accent-primary)] hover:underline"
-                        >
-                          Resume Chat
-                        </Link>
-                      ) : (
-                        <span className="text-xs text-[var(--text-muted)]">
-                          —
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-primary)]">
+                {list.map((s) => (
+                  <ConsultationRow
+                    key={s.id}
+                    s={s}
+                    format={format}
+                    onRate={() => setReviewFor(s)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
+      <ReviewModal
+        open={!!reviewFor}
+        session={reviewFor}
+        onClose={() => setReviewFor(null)}
+        /* History-view reviews are optional — the shopper can dismiss;
+           the mandatory variant lives on the chat page at session end. */
+        mandatory={false}
+      />
     </div>
   );
+}
+
+function ConsultationRow({
+  s,
+  format,
+  onRate,
+}: {
+  s: any;
+  format: (n: number) => string;
+  onRate: () => void;
+}) {
+  const astro = s.astrologer ?? {};
+  const name = astro.displayName ?? astro.fullName ?? "Astrologer";
+  const imgRaw = astro.profile?.image ?? astro.profileImage;
+  const src = imgRaw ? resolveAssetUrl(imgRaw) || imgRaw : "";
+  const seconds = Number(s.secondsBilled ?? s.minutesBilled * 60 ?? 0);
+  const status = String(s.status ?? "").toUpperCase();
+  const paid = Number(s.totalCharged ?? 0);
+  const freeMinutes = Number(s.freeMinutesGranted ?? 0);
+  const freeSeconds = Math.min(freeMinutes * 60, seconds);
+  const isFree = paid <= 0;
+  const when = s.endedAt ? new Date(s.endedAt) : null;
+  const review = s.review;
+  const canReview = status === "ENDED" && !review;
+
+  return (
+    <tr className="hover:bg-[var(--bg-card-hover)]">
+      <td className="whitespace-nowrap px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[var(--border-primary)] bg-[var(--bg-secondary)]">
+            {src ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={src} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[var(--accent-primary)]">
+                <Sparkles className="h-3.5 w-3.5" />
+              </div>
+            )}
+          </div>
+          <p className="truncate font-semibold text-[var(--text-primary)]">
+            {name}
+          </p>
+        </div>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-[var(--text-secondary)]">
+        {when
+          ? when.toLocaleString([], {
+              day: "2-digit",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "-"}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 font-mono text-[var(--text-secondary)]">
+        <div>{formatDuration(seconds)}</div>
+        {freeMinutes > 0 && (
+          <div className="mt-0.5 font-sans text-[10px] text-emerald-500">
+            incl. {formatDuration(freeSeconds)} free
+          </div>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3">
+        {isFree ? (
+          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+            Free
+          </span>
+        ) : (
+          format(paid)
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3">
+        <span
+          className={cn(
+            "inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+            statusCls[status] || "bg-[var(--bg-secondary)] text-[var(--text-muted)]",
+          )}
+        >
+          {status.toLowerCase()}
+        </span>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3">
+        {review ? (
+          <div className="inline-flex items-center gap-1 text-[var(--jy-accent-gold)]">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star
+                key={i}
+                className={cn(
+                  "h-3.5 w-3.5",
+                  i < review.rating ? "fill-current" : "opacity-30",
+                )}
+              />
+            ))}
+          </div>
+        ) : canReview ? (
+          <button
+            type="button"
+            onClick={onRate}
+            className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent-primary)] px-2.5 py-1 text-[11px] font-semibold text-white hover:brightness-110"
+          >
+            <Star className="h-3 w-3" /> Rate session
+          </button>
+        ) : (
+          <span className="text-xs text-[var(--text-muted)]">—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5">
+      <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "mt-2 text-2xl font-bold",
+          accent ? "text-[var(--accent-primary)]" : "text-[var(--text-primary)]",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatDuration(totalSec: number) {
+  const s = Math.max(0, Math.round(totalSec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
 }

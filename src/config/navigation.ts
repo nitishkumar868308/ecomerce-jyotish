@@ -13,7 +13,6 @@ import {
   Video,
   FileText,
   Tag,
-  Percent,
   ExternalLink,
   MessageSquare,
   MapPin,
@@ -103,6 +102,7 @@ export const ADMIN_NAV: NavItem[] = [
     children: [
       { label: "Locations", href: ROUTES.ADMIN.WAREHOUSE_LOCATION },
       { label: "Send to Warehouse", href: ROUTES.ADMIN.SEND_TO_WAREHOUSE },
+      { label: "Print Labels", href: ROUTES.ADMIN.PRINT_LABELS },
     ],
   },
   {
@@ -123,12 +123,13 @@ export const ADMIN_NAV: NavItem[] = [
       { label: "Ad Campaigns", href: ROUTES.ADMIN.JYOTISH_AD_CAMPAIGN },
       { label: "Astrologer Details", href: ROUTES.ADMIN.JYOTISH_ASTROLOGER_DETAIL },
       { label: "Profile Edit Requests", href: ROUTES.ADMIN.JYOTISH_PROFILE_EDIT_REQUESTS },
+      { label: "Astrologer Chats", href: ROUTES.ADMIN.JYOTISH_ASTROLOGER_CHATS },
       { label: "Services", href: ROUTES.ADMIN.JYOTISH_SERVICES },
       // Durations is hidden from the admin nav — per-minute pricing lives on
       // the astrologer's profile now. Uncomment to re-enable the module.
       // { label: "Durations", href: ROUTES.ADMIN.JYOTISH_DURATIONS },
       { label: "Free Offers", href: "/admin/jyotish/free-offers" },
-      { label: "Tax Settings", href: ROUTES.ADMIN.JYOTISH_TAX_SETTINGS, icon: Percent },
+      { label: "Transactions", href: "/admin/jyotish/transactions" },
     ],
   },
 ];

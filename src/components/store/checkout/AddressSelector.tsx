@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 
 interface Address {
-  id: number;
+  id: string;
   name: string;
   phone?: string;
   line1: string;
@@ -20,8 +20,8 @@ interface Address {
 
 interface AddressSelectorProps {
   addresses: Address[];
-  selectedId?: number;
-  onSelect: (id: number) => void;
+  selectedId?: string;
+  onSelect: (id: string) => void;
   onAddNew: () => void;
   className?: string;
 }

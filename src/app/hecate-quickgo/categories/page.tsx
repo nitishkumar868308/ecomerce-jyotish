@@ -1,150 +1,153 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
+import { useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { Breadcrumbs } from "@/components/store/categories/Breadcrumbs";
+import {
+  FilterSidebar,
+  AlphabetBar,
+  DEFAULT_FILTERS,
+} from "@/components/store/categories/FilterSidebar";
+import type { FilterState } from "@/components/store/categories/FilterSidebar";
+import ProductGrid from "@/components/store/product/ProductGrid";
+import { Pagination } from "@/components/ui/Pagination";
+import { useProductsFast } from "@/services/products";
 import { useCategories } from "@/services/categories";
-import { useProducts } from "@/services/products";
+import { useTags } from "@/services/tags";
 import { filterByPlatform } from "@/lib/products";
-import { resolveAssetUrl } from "@/lib/assetUrl";
 import { useQuickGoStore } from "@/stores/useQuickGoStore";
+
+// QuickGo categories — mirrors the wizard page's filter + grid structure so
+// both storefronts behave the same (sidebar filters on desktop, mobile bottom
+// sheet, alphabet bar, pagination). ProductCard already flips its URL based
+// on the current pathname, so products link into /hecate-quickgo/product/*.
+
+const ITEMS_PER_PAGE = 12;
 
 export default function QuickGoCategoriesPage() {
   const searchParams = useSearchParams();
+  const searchQuery = searchParams.get("search") || "";
   const initialCat = searchParams.get("cat") || "";
-  const [selectedCat, setSelectedCat] = useState(initialCat);
-  const { data: categories, isLoading: catLoading } = useCategories();
+
+  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState<FilterState>({
+    ...DEFAULT_FILTERS,
+    categoryId: initialCat ? Number(initialCat) : DEFAULT_FILTERS.categoryId,
+  });
+
   const quickGoCity = useQuickGoStore((s) => s.city);
-  const { data: productsData, isLoading: prodLoading } = useProducts({
-    ...(selectedCat ? { categoryId: selectedCat } : {}),
+  const quickGoPincode = useQuickGoStore((s) => s.pincode);
+
+  // Backend scopes categories to `platform=quickgo` + the shopper's
+  // city allowlist. Subcategory picker downstream inherits the same
+  // filter so an admin assignment mismatch (sub assigned to a city but
+  // the parent category isn't) doesn't sneak sub-rows past.
+  const { data: categories, isLoading: catsLoading } = useCategories({
     platform: "quickgo",
     city: quickGoCity || undefined,
   });
-  const products = filterByPlatform(productsData?.data, "quickgo");
+  const { data: tagsData } = useTags();
+  const tags = tagsData ?? [];
+
+  const { data: productsData, isLoading: productsLoading } = useProductsFast({
+    page,
+    limit: ITEMS_PER_PAGE,
+    categoryId: filters.categoryId,
+    subcategoryId: filters.subcategoryId,
+    tags: filters.tags.length > 0 ? filters.tags.join(",") : undefined,
+    minPrice: filters.minPrice > 0 ? filters.minPrice : undefined,
+    maxPrice: filters.maxPrice < 50000 ? filters.maxPrice : undefined,
+    sortBy: filters.sortBy || undefined,
+    sortOrder: filters.sortBy ? filters.sortOrder : undefined,
+    letter: filters.letter || undefined,
+    search: searchQuery || undefined,
+    platform: "quickgo",
+    city: quickGoCity || undefined,
+    pincode: quickGoPincode || undefined,
+  });
+
+  const productList = filterByPlatform(productsData?.data?.products, "quickgo");
+  const totalProducts = productsData?.data?.total ?? 0;
+  const totalPages = productsData?.data?.totalPages ?? 0;
+
+  const handleFilterChange = useCallback((partial: Partial<FilterState>) => {
+    setFilters((prev) => ({ ...prev, ...partial }));
+    setPage(1);
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setFilters({ ...DEFAULT_FILTERS });
+    setPage(1);
+  }, []);
+
+  const handleLetterChange = useCallback((letter: string) => {
+    setFilters((prev) => ({ ...prev, letter }));
+    setPage(1);
+  }, []);
+
+  const activeCategory = categories?.find((c) => c.id === filters.categoryId);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <h1 className="mb-6 text-2xl font-bold">
-        <span className="text-[var(--qg-primary,#0d9488)]">Categories</span>
-      </h1>
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:pr-12">
+      <Breadcrumbs
+        items={[
+          { label: "Categories" },
+          ...(activeCategory ? [{ label: activeCategory.name }] : []),
+        ]}
+      />
 
-      <div className="flex gap-6">
-        {/* Sidebar */}
-        <aside className="hidden w-52 shrink-0 lg:block">
-          <div className="sticky top-20 space-y-1">
-            <button
-              onClick={() => setSelectedCat("")}
-              className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
-                !selectedCat
-                  ? "bg-[var(--qg-primary,#0d9488)]/10 text-[var(--qg-primary,#0d9488)]"
-                  : "text-[var(--qg-text-secondary,#64748b)] hover:bg-[var(--qg-primary,#0d9488)]/5"
-              }`}
-            >
-              All Categories
-            </button>
-            {catLoading
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-9 rounded-lg shimmer" />
-                ))
-              : (categories ?? []).map((cat: any) => {
-                  const id = cat._id || cat.id;
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => setSelectedCat(String(id))}
-                      className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
-                        selectedCat === String(id)
-                          ? "bg-[var(--qg-primary,#0d9488)]/10 text-[var(--qg-primary,#0d9488)]"
-                          : "text-[var(--qg-text-secondary,#64748b)] hover:bg-[var(--qg-primary,#0d9488)]/5"
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
-          </div>
-        </aside>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)] sm:text-3xl">
+          {searchQuery
+            ? `Search: "${searchQuery}"`
+            : activeCategory
+              ? activeCategory.name
+              : "All Category"}
+        </h1>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          {searchQuery
+            ? "Search results"
+            : "Browse QuickGo's full catalogue — same-day delivery where available."}
+        </p>
+        {totalProducts > 0 && (
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            {totalProducts} product{totalProducts !== 1 ? "s" : ""} found
+          </p>
+        )}
+      </div>
 
-        {/* Mobile categories */}
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-          <button
-            onClick={() => setSelectedCat("")}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
-              !selectedCat
-                ? "bg-[var(--qg-primary,#0d9488)] text-white"
-                : "bg-[var(--qg-primary,#0d9488)]/5 text-[var(--qg-text-secondary,#64748b)]"
-            }`}
-          >
-            All
-          </button>
-          {(categories ?? []).map((cat: any) => {
-            const id = cat._id || cat.id;
-            return (
-              <button
-                key={id}
-                onClick={() => setSelectedCat(String(id))}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
-                  selectedCat === String(id)
-                    ? "bg-[var(--qg-primary,#0d9488)] text-white"
-                    : "bg-[var(--qg-primary,#0d9488)]/5 text-[var(--qg-text-secondary,#64748b)]"
-                }`}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <FilterSidebar
+          categories={categories ?? []}
+          tags={tags}
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onReset={handleReset}
+          isLoading={catsLoading}
+        />
 
-        {/* Products grid */}
         <div className="min-w-0 flex-1">
-          {prodLoading ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-52 rounded-xl shimmer" />
-              ))}
-            </div>
-          ) : products.length === 0 ? (
-            <div className="rounded-xl border border-[var(--qg-border,#e0f2f1)] bg-white py-16 text-center">
-              <p className="text-sm text-[var(--qg-text-secondary,#64748b)]">
-                No products found in this category
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {products.map((p: any) => (
-                <Link
-                  key={p._id || p.id}
-                  href={`/hecate-quickgo/product/${p.slug || p._id || p.id}`}
-                  className="group rounded-xl border border-[var(--qg-border,#e0f2f1)] bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  {(() => {
-                    const rawImg = Array.isArray(p.image)
-                      ? p.image[0]
-                      : p.images?.[0] || p.image;
-                    const resolved = resolveAssetUrl(rawImg);
-                    return resolved ? (
-                      <img
-                        src={resolved}
-                        alt={p.name}
-                        className="mb-3 h-28 w-full rounded-lg object-contain"
-                      />
-                    ) : (
-                      <div className="mb-3 flex h-28 w-full items-center justify-center rounded-lg bg-[var(--qg-primary,#0d9488)]/5 text-2xl">
-                        {p.name?.[0]}
-                      </div>
-                    );
-                  })()}
-                  <h3 className="mb-1 truncate text-sm font-medium group-hover:text-[var(--qg-primary,#0d9488)]">
-                    {p.name}
-                  </h3>
-                  <p className="text-sm font-bold text-[var(--qg-primary,#0d9488)]">
-                    &#8377;{p.price?.toLocaleString("en-IN") ?? 0}
-                  </p>
-                </Link>
-              ))}
+          <ProductGrid
+            products={productList}
+            loading={productsLoading}
+            className="grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
+          />
+
+          {totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+              />
             </div>
           )}
         </div>
+
+        <AlphabetBar
+          activeLetter={filters.letter}
+          onLetterChange={handleLetterChange}
+        />
       </div>
     </div>
   );

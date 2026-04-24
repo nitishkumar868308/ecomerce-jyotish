@@ -105,9 +105,14 @@ export function useCreateWarehouse() {
       );
       return data.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "warehouses"] });
-      qc.invalidateQueries({ queryKey: ["warehouse", "publicCities"] });
+    // Await the refetch so callers that `await mutateAsync` see fresh list
+    // data before closing the dialog — otherwise the table lags a frame and
+    // looks like it needs a manual refresh.
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["admin", "warehouses"] }),
+        qc.refetchQueries({ queryKey: ["warehouse", "publicCities"] }),
+      ]);
       toast.success("Warehouse created!");
     },
     onError: (error: any) => {
@@ -131,9 +136,11 @@ export function useUpdateWarehouse() {
       );
       return data.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "warehouses"] });
-      qc.invalidateQueries({ queryKey: ["warehouse", "publicCities"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["admin", "warehouses"] }),
+        qc.refetchQueries({ queryKey: ["warehouse", "publicCities"] }),
+      ]);
       toast.success("Warehouse updated!");
     },
     onError: (error: any) => {
@@ -150,9 +157,11 @@ export function useDeleteWarehouse() {
     mutationFn: async (id: number) => {
       await api.delete(ENDPOINTS.WAREHOUSE.DELETE(id));
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "warehouses"] });
-      qc.invalidateQueries({ queryKey: ["warehouse", "publicCities"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["admin", "warehouses"] }),
+        qc.refetchQueries({ queryKey: ["warehouse", "publicCities"] }),
+      ]);
       toast.success("Warehouse deleted!");
     },
     onError: (error: any) => {
@@ -225,12 +234,52 @@ export function useUpdateDelhiStore() {
 
 // --- Bangalore Inventory ---
 
-export function useBangaloreInventory() {
-  return useQuery({
-    queryKey: ["admin", "bangaloreInventory"],
+export interface BangaloreInventoryRow {
+  id: number;
+  channelSkuCode: string;
+  locationCode: string;
+  quantity: number;
+  stock: number;
+  clientSkuId: string | null;
+  minExpiry: string | null;
+  updatedAt: string;
+  lastSynced: string;
+  sku: string | null;
+  mapped: boolean;
+  mappingId: number | null;
+  product: { name: string; sku: string } | null;
+}
+
+export interface BangaloreInventoryResponse {
+  data: BangaloreInventoryRow[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export function useBangaloreInventory(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+}) {
+  return useQuery<BangaloreInventoryResponse>({
+    queryKey: [
+      "admin",
+      "bangaloreInventory",
+      params?.page ?? 1,
+      params?.limit ?? 20,
+      params?.search ?? "",
+    ],
     queryFn: async () => {
-      const { data } = await api.get(ENDPOINTS.BANGALORE_INVENTORY.LIST);
-      return data.data;
+      const { data } = await api.get(ENDPOINTS.BANGALORE_INVENTORY.LIST, {
+        params: {
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 20,
+          search: params?.search || undefined,
+        },
+      });
+      return data.data as BangaloreInventoryResponse;
     },
     staleTime: 60 * 1000,
   });

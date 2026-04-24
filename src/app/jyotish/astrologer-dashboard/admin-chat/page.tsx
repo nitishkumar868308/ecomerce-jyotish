@@ -1,128 +1,162 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, MessageCircle, Send } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Loader2, MessageCircle, Shield, Sparkles, Check, CheckCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/useAuthStore";
-import toast from "react-hot-toast";
+import {
+  useAstrologerAdminChat,
+  useAstrologerSendAdminChat,
+  useAstrologerMarkAdminChatRead,
+  type AdminChatMessage,
+} from "@/services/jyotish/admin-chat";
+import { ChatComposer } from "@/components/jyotish/dashboard/ChatComposer";
 
 /**
- * Astrologer ↔ Admin direct chat.
- *
- * This is a plain support chat (not a billable session). The UI is ready —
- * wiring to a backend `admin_support_chat` table with a socket channel is
- * queued in the backend work. For now messages stay in local state so
- * astrologers can preview the flow; switching to socket.io takes an hour
- * once the backend endpoints exist.
+ * Astrologer-facing support chat. Single thread per astrologer, polled
+ * every 8s for new admin replies. Mark-as-read fires on mount and each
+ * time the message list length changes so the dashboard unread badge
+ * resets immediately when the astrologer is viewing the page.
  */
-interface Message {
-  id: string;
-  from: "astrologer" | "admin";
-  text: string;
-  at: number;
-}
-
 export default function AstrologerAdminChatPage() {
   const { user } = useAuthStore();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      from: "admin",
-      text: `Hi ${user?.name?.split(" ")[0] ?? "there"}, our team is here to help with payouts, profile reviews or anything else. How can we support you?`,
-      at: Date.now() - 1000 * 60 * 60,
-    },
-  ]);
-  const [draft, setDraft] = useState("");
+  const astrologerId = user?.id as number | undefined;
+  const { data: messages, isLoading } = useAstrologerAdminChat(astrologerId);
+  const send = useAstrologerSendAdminChat();
+  const markRead = useAstrologerMarkAdminChatRead();
+  const [text, setText] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = () => {
-    const text = draft.trim();
-    if (!text) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `m${prev.length + 1}`,
-        from: "astrologer",
-        text,
-        at: Date.now(),
-      },
-    ]);
-    setDraft("");
-    toast("Message queued — will send to admin once live chat is enabled.", {
-      icon: "💬",
-    });
+  useEffect(() => {
+    if (!astrologerId) return;
+    markRead.mutate(astrologerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [astrologerId, messages?.length]);
+
+  useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages?.length]);
+
+  const handleSend = async () => {
+    if (!astrologerId) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setText("");
+    await send.mutateAsync({ astrologerId, text: trimmed });
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-6rem)] max-w-3xl flex-col px-4 py-6 sm:px-6">
-      <Link
-        href="/jyotish/astrologer-dashboard"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--jy-text-secondary)] hover:text-[var(--jy-accent-gold)]"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to dashboard
-      </Link>
+    <div className="mx-auto flex max-w-3xl flex-col">
+      <header className="mb-5 flex items-center gap-3">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--jy-accent-purple)] to-[var(--jy-accent-gold)] text-white">
+          <Shield className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-xl font-bold text-[var(--jy-text-primary)] sm:text-2xl">
+            Chat with Admin
+          </h1>
+          <p className="text-sm text-[var(--jy-text-muted)]">
+            Direct line to the Hecate admin team. Replies usually within a day.
+          </p>
+        </div>
+      </header>
 
-      <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--jy-bg-card-border)] bg-[var(--jy-bg-card)]">
-        <header className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--jy-accent-gold)]/15 text-[var(--jy-accent-gold)]">
-            <MessageCircle className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[var(--jy-text-primary)]">
-              Hecate Admin Support
-            </p>
-            <p className="text-xs text-[var(--jy-text-muted)]">
-              Typically replies within a few hours
-            </p>
-          </div>
-        </header>
-
-        <div className="flex-1 space-y-3 overflow-y-auto p-5">
-          {messages.map((m) => {
-            const mine = m.from === "astrologer";
-            return (
-              <div
-                key={m.id}
-                className={`flex ${mine ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
-                    mine
-                      ? "rounded-br-md bg-[var(--jy-accent-gold)]/20 text-[var(--jy-text-primary)]"
-                      : "rounded-bl-md bg-white/5 text-[var(--jy-text-secondary)]"
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{m.text}</p>
-                  <p className="mt-1 text-right text-[10px] text-[var(--jy-text-muted)]">
-                    {new Date(m.at).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+      <div className="flex h-[calc(100vh-240px)] min-h-[420px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[var(--jy-bg-card)]">
+        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6">
+          {isLoading ? (
+            <div className="flex h-full items-center justify-center text-sm text-[var(--jy-text-muted)]">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading
+              conversation…
+            </div>
+          ) : !messages || messages.length === 0 ? (
+            <EmptyState />
+          ) : (
+            messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          )}
+          <div ref={bottomRef} />
         </div>
 
-        <footer className="flex items-center gap-2 border-t border-white/10 px-4 py-3">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Write a message to admin..."
-            className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-[var(--jy-text-primary)] placeholder:text-[var(--jy-text-muted)] outline-none focus:border-[var(--jy-accent-gold)]/40"
-          />
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!draft.trim()}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--jy-accent-gold)] text-[var(--jy-bg-primary)] transition-opacity disabled:opacity-40"
-            aria-label="Send"
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </footer>
+        <ChatComposer
+          value={text}
+          onChange={setText}
+          onSend={handleSend}
+          pending={send.isPending}
+          variant="jyotish"
+        />
       </div>
+    </div>
+  );
+}
+
+function MessageBubble({ message }: { message: AdminChatMessage }) {
+  const mine = message.senderType === "ASTROLOGER";
+  return (
+    <div className={cn("flex gap-2", mine ? "flex-row-reverse" : "flex-row")}>
+      <span
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+          mine
+            ? "bg-[var(--jy-accent-gold)]/20 text-[var(--jy-accent-gold)]"
+            : "bg-[var(--jy-accent-purple)]/20 text-[var(--jy-accent-purple-light)]",
+        )}
+      >
+        {mine ? <Sparkles className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+      </span>
+      <div className={cn("flex max-w-[78%] flex-col", mine && "items-end")}>
+        <div
+          className={cn(
+            "whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm",
+            mine
+              ? "rounded-br-sm border border-[var(--jy-accent-gold)]/30 bg-gradient-to-br from-[var(--jy-accent-gold)]/20 to-amber-500/10 text-[var(--jy-text-primary)]"
+              : "rounded-bl-sm border border-white/10 bg-white/[0.04] text-[var(--jy-text-primary)]",
+          )}
+        >
+          {message.text}
+        </div>
+        <p
+          className={cn(
+            "mt-1 flex items-center gap-1 text-[10px] uppercase tracking-wider",
+            mine
+              ? "text-[var(--jy-accent-gold)]/70"
+              : "text-[var(--jy-text-muted)]",
+          )}
+        >
+          {mine ? "You" : "Admin"} ·{" "}
+          {new Date(message.createdAt).toLocaleString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+            day: "2-digit",
+            month: "short",
+          })}
+          {/* Read receipt — single gray tick when sent, double gold
+              tick once admin opens the thread (readByAdmin flips). */}
+          {mine &&
+            (message.readByAdmin ? (
+              <CheckCheck className="h-3 w-3 text-[var(--jy-accent-gold)]" />
+            ) : (
+              <Check className="h-3 w-3 text-[var(--jy-text-muted)]" />
+            ))}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center text-center">
+      <div className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-[var(--jy-accent-gold)]/30 bg-[var(--jy-accent-gold)]/10 text-[var(--jy-accent-gold)]">
+        <MessageCircle className="h-6 w-6" />
+      </div>
+      <p className="text-sm font-semibold text-[var(--jy-text-primary)]">
+        Say hi to the admin team
+      </p>
+      <p className="mt-1 max-w-xs text-xs text-[var(--jy-text-muted)]">
+        Use this channel to raise profile edits, payout questions or
+        anything else. We usually reply within a business day.
+      </p>
     </div>
   );
 }

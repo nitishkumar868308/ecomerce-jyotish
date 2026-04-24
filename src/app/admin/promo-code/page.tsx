@@ -260,12 +260,20 @@ function ManageTab() {
       label: "Usage",
       render: (_val, row) => {
         const p = row as any;
-        const max = p.usageLimit ?? p.maxUses;
+        const total = p.usedCount ?? 0;
+        const perUser = p.usageLimit ?? p.maxUses;
         return (
-          <span className="text-sm text-[var(--text-primary)]">
-            {p.usedCount ?? 0}
-            {max ? <span className="text-[var(--text-muted)]"> / {max}</span> : ""}
-          </span>
+          <div className="text-sm">
+            <p className="text-[var(--text-primary)]">
+              {total}{" "}
+              <span className="text-xs text-[var(--text-muted)]">
+                {total === 1 ? "redemption" : "redemptions"}
+              </span>
+            </p>
+            <p className="text-[10px] text-[var(--text-muted)]">
+              {perUser ? `Max ${perUser}/user` : "Unlimited / user"}
+            </p>
+          </div>
         );
       },
     },
@@ -413,12 +421,16 @@ function ManageTab() {
           )}
 
           <Input
-            label="Max uses (total)"
+            label="Max uses per user"
             type="number"
             value={form.maxUses}
             onChange={(e) => setForm({ ...form, maxUses: e.target.value })}
             placeholder="Leave blank for unlimited"
-            helperText="Total redemptions across all users"
+            helperText={
+              form.targetType === "USER"
+                ? "How many times the picked user can redeem this code"
+                : "How many times each shopper can redeem this code"
+            }
           />
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -461,52 +473,120 @@ function ManageTab() {
 
       {/* View */}
       <Modal isOpen={mode === "view"} onClose={closeDialog} title="Promo Code" size="lg">
-        {selected && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-[var(--border-primary)] bg-gradient-to-br from-[var(--accent-primary-light)] to-[var(--bg-card)] p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Code</p>
-              <p className="mt-1 font-mono text-2xl font-bold tracking-wider text-[var(--text-primary)]">
-                {selected.code}
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Discount">
-                {(selected.discountType ?? "PERCENTAGE") === "PERCENTAGE"
-                  ? `${selected.discountValue ?? selected.discountPercent}%`
-                  : `₹${selected.discountValue}`}
-              </Field>
-              <Field label="Target">
-                {(selected as any).appliesTo === "SPECIFIC_USERS" ||
-                selected.targetType === "USER" ||
-                selected.userId
-                  ? "Specific user"
-                  : "All users"}
-              </Field>
-              <Field label="Usage">
-                {selected.usedCount ?? 0}
-                {(selected as any).usageLimit ?? selected.maxUses
-                  ? ` / ${(selected as any).usageLimit ?? selected.maxUses}`
-                  : ""}
-              </Field>
-              <Field label="Valid from">
-                {(selected as any).validFrom
-                  ? new Date((selected as any).validFrom).toLocaleDateString()
-                  : "—"}
-              </Field>
-              <Field label="Expires">
-                {(selected as any).validTill || selected.validUntil || selected.expiresAt
-                  ? new Date(
-                      ((selected as any).validTill || selected.validUntil || selected.expiresAt)!,
-                    ).toLocaleDateString()
-                  : "Never"}
-              </Field>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={closeDialog}>Close</Button>
-              <Button onClick={() => openEdit(selected)} leftIcon={<Edit className="h-4 w-4" />}>Edit</Button>
-            </div>
-          </div>
-        )}
+        {selected &&
+          (() => {
+            const sp = selected as any;
+            const eligibleIds: number[] = Array.isArray(sp.eligibleUsers)
+              ? sp.eligibleUsers
+              : selected.userId
+                ? [Number(selected.userId)]
+                : [];
+            const isSpecific =
+              sp.appliesTo === "SPECIFIC_USERS" ||
+              selected.targetType === "USER" ||
+              eligibleIds.length > 0;
+            const eligibleUsers = eligibleIds
+              .map((id) => users.find((u) => u.id === id))
+              .filter((u): u is NonNullable<typeof u> => !!u);
+            const perUserLimit = sp.usageLimit ?? selected.maxUses;
+
+            return (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-[var(--border-primary)] bg-gradient-to-br from-[var(--accent-primary-light)] to-[var(--bg-card)] p-5">
+                  <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                    Code
+                  </p>
+                  <p className="mt-1 font-mono text-2xl font-bold tracking-wider text-[var(--text-primary)]">
+                    {selected.code}
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Discount">
+                    {(selected.discountType ?? "PERCENTAGE") === "PERCENTAGE"
+                      ? `${selected.discountValue ?? selected.discountPercent}%`
+                      : `₹${selected.discountValue}`}
+                  </Field>
+                  <Field label="Target">
+                    {isSpecific ? "Specific user" : "All users"}
+                  </Field>
+                  <Field label="Total redemptions">
+                    {selected.usedCount ?? 0}
+                  </Field>
+                  <Field label="Max uses per user">
+                    {perUserLimit ?? "Unlimited"}
+                  </Field>
+                  <Field label="Valid from">
+                    {sp.validFrom
+                      ? new Date(sp.validFrom).toLocaleDateString()
+                      : "—"}
+                  </Field>
+                  <Field label="Expires">
+                    {sp.validTill || selected.validUntil || selected.expiresAt
+                      ? new Date(
+                          (sp.validTill ||
+                            selected.validUntil ||
+                            selected.expiresAt)!,
+                        ).toLocaleDateString()
+                      : "Never"}
+                  </Field>
+                </div>
+
+                {/* Eligible users block — only shown for SPECIFIC_USERS
+                    codes. Lists every user with name/email so the admin
+                    can confirm exactly who this private invite will
+                    show up for at checkout. */}
+                {isSpecific && (
+                  <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-4">
+                    <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                      <UserIcon className="h-3.5 w-3.5" />
+                      Eligible user{eligibleIds.length === 1 ? "" : "s"} ({eligibleIds.length})
+                    </p>
+                    {eligibleUsers.length === 0 ? (
+                      <p className="text-xs text-[var(--accent-danger)]">
+                        No users assigned. Edit the code and pick a user
+                        so this invite can be redeemed.
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {eligibleUsers.map((u) => (
+                          <div
+                            key={u.id}
+                            className="flex items-center justify-between rounded-lg bg-[var(--bg-secondary)] px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                                {u.name || `User #${u.id}`}
+                              </p>
+                              {u.email && (
+                                <p className="truncate text-xs text-[var(--text-muted)]">
+                                  {u.email}
+                                </p>
+                              )}
+                            </div>
+                            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                              #{u.id}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={closeDialog}>
+                    Close
+                  </Button>
+                  <Button
+                    onClick={() => openEdit(selected)}
+                    leftIcon={<Edit className="h-4 w-4" />}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
       </Modal>
 
       <ConfirmModal

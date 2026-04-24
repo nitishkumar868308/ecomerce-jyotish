@@ -31,23 +31,30 @@ export function BulkPricingList({
         Bulk pricing
       </p>
       <ul className="space-y-1">
-        {sorted.map((t, i) => (
-          <li
-            key={`${t.qty}-${t.unitPrice}`}
-            className={cn(
-              "flex items-center justify-between rounded-md px-2 py-1 text-sm",
-              i === activeIdx
-                ? "bg-[var(--accent-primary)]/10 font-semibold text-[var(--accent-primary)]"
-                : "text-[var(--text-secondary)]",
-            )}
-          >
-            <span>Qty ≥ {t.qty}</span>
-            <span>
-              {currencySymbol}
-              {t.unitPrice.toLocaleString()} each
-            </span>
-          </li>
-        ))}
+        {sorted.map((t, i) => {
+          const isActive = i === activeIdx;
+          return (
+            <li
+              key={`${t.qty}-${t.unitPrice}`}
+              className={cn(
+                "flex items-center justify-between rounded-md px-2 py-1 text-sm",
+                isActive
+                  ? "bg-[var(--accent-primary)]/10 font-semibold text-[var(--accent-primary)]"
+                  : "text-[var(--text-secondary)]",
+              )}
+            >
+              <span>
+                Buy {t.qty} get {currencySymbol}
+                {t.unitPrice.toLocaleString()}
+              </span>
+              {isActive && (
+                <span className="rounded-full bg-[var(--accent-primary)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-primary)]">
+                  Applied
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

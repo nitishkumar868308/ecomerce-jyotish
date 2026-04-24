@@ -10,6 +10,7 @@ export interface ContactMessage {
   phone?: string;
   subject?: string;
   message: string;
+  platform?: string | null;
   isRead: boolean;
   repliedAt?: string | null;
   createdAt: string;

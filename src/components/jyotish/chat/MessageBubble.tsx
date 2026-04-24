@@ -8,6 +8,10 @@ interface MessageBubbleProps {
   sender: "self" | "other";
   timestamp?: string;
   senderName?: string;
+  /** Optimistic local bubble waiting for server ack — slightly faded
+   *  with a subtle clock marker so the sender can tell it hasn't
+   *  hit the server yet. */
+  pending?: boolean;
 }
 
 export function MessageBubble({
@@ -15,6 +19,7 @@ export function MessageBubble({
   sender,
   timestamp,
   senderName,
+  pending,
 }: MessageBubbleProps) {
   const isSelf = sender === "self";
 
@@ -28,22 +33,24 @@ export function MessageBubble({
         )}
         <div
           className={cn(
-            "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+            "rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm transition-opacity",
             isSelf
               ? "rounded-br-md bg-gradient-to-r from-[var(--jy-accent-gold)] to-amber-500 text-[var(--jy-bg-primary)]"
               : "rounded-bl-md border border-white/5 bg-[var(--jy-bg-card)] text-[var(--jy-text-primary)]",
+            pending && "opacity-70",
           )}
         >
           {message}
         </div>
-        {timestamp && (
+        {(timestamp || pending) && (
           <p
             className={cn(
-              "mt-1 text-[10px] text-[var(--jy-text-muted)]",
-              isSelf ? "text-right" : "text-left",
+              "mt-1 inline-flex items-center gap-1 text-[10px] text-[var(--jy-text-muted)]",
+              isSelf ? "float-right clear-both" : "float-left clear-both",
             )}
           >
             {timestamp}
+            {pending && <span className="opacity-70">· sending…</span>}
           </p>
         )}
       </div>

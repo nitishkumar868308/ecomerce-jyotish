@@ -5,6 +5,7 @@ import Link from "next/link";
 import ProductDetail from "@/components/store/product/ProductDetail";
 import RelatedProducts from "@/components/store/product/RelatedProducts";
 import { useProduct } from "@/services/products";
+import { useQuickGoStore } from "@/stores/useQuickGoStore";
 import { ROUTES } from "@/config/routes";
 import { Loader } from "@/components/ui/Loader";
 
@@ -20,7 +21,17 @@ function ProductSkeleton() {
 
 export default function QuickGoProductPage() {
   const params = useParams<{ id: string }>();
-  const { data: product, isLoading, error } = useProduct(params.id);
+  const quickGoCity = useQuickGoStore((s) => s.city);
+  const quickGoPincode = useQuickGoStore((s) => s.pincode);
+  // Pass the shopper's location so the backend returns only variations
+  // actually stocked at the effective fulfillment warehouse (Delhi or
+  // Bangalore). Without both values the endpoint returns the regular
+  // full payload — that fallback is intentional for the admin preview
+  // path.
+  const { data: product, isLoading, error } = useProduct(params.id, {
+    city: quickGoCity || undefined,
+    pincode: quickGoPincode || undefined,
+  });
 
   if (isLoading) return <ProductSkeleton />;
 
@@ -46,7 +57,7 @@ export default function QuickGoProductPage() {
   return (
     <>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <ProductDetail product={product} />
+        <ProductDetail product={product} hideUnavailableVariations />
       </div>
       {product.categoryId && (
         <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
@@ -54,6 +65,8 @@ export default function QuickGoProductPage() {
             categoryId={product.categoryId}
             currentProductId={product.id}
             platform="quickgo"
+            city={quickGoCity || undefined}
+            pincode={quickGoPincode || undefined}
           />
         </div>
       )}

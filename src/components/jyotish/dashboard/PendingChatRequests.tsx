@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
   useJyotishChatSessions,
@@ -8,6 +9,7 @@ import {
   useRejectChat,
 } from "@/services/jyotish/sessions";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useUIStore } from "@/stores/useUIStore";
 
 /**
  * Live "Incoming chat requests" widget on the astrologer dashboard.
@@ -21,8 +23,10 @@ import { useAuthStore } from "@/stores/useAuthStore";
  * reacts to balance changes (see ChatWindow).
  */
 export function PendingChatRequests() {
+  const router = useRouter();
   const { user } = useAuthStore();
-  const { data: sessions } = useJyotishChatSessions();
+  const startTransition = useUIStore((s) => s.startTransition);
+  const { data: sessions } = useJyotishChatSessions(user?.id);
   const accept = useAcceptChat();
   const reject = useRejectChat();
   const [rejecting, setRejecting] = useState<{
@@ -59,24 +63,31 @@ export function PendingChatRequests() {
               </p>
               <p className="text-xs text-[var(--jy-text-muted)]">
                 Requested{" "}
-                {s.createdAt
-                  ? new Date(s.createdAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : ""}
+                {(() => {
+                  const iso = s.requestedAt ?? s.createdAt;
+                  return iso
+                    ? new Date(iso).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "";
+                })()}
                 {s.serviceId ? ` · Service #${s.serviceId}` : ""}
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  accept.mutate({
+                onClick={async () => {
+                  startTransition("Starting chat…");
+                  await accept.mutateAsync({
                     sessionId: Number(s.id),
                     astrologerId: Number(user?.id),
-                  })
-                }
+                  });
+                  router.push(
+                    `/jyotish/astrologer-dashboard/chat/${Number(s.id)}`,
+                  );
+                }}
                 disabled={accept.isPending}
                 className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-50"
               >

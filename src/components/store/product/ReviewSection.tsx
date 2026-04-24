@@ -256,12 +256,13 @@ export function ReviewSection({ productId, className }: ReviewSectionProps) {
         </Button>
         {isLoggedIn && !checkingOrders && !hasDelivered && (
           <p className="mt-2 text-xs text-[var(--text-tertiary)]">
-            Order karne aur delivery hone ke baad hi rating and review de sakte ho. Lekin aap doosre reviews yahan padh sakte ho.
+            You can rate and review this product after you've purchased it.
+            Everyone can still read the reviews below.
           </p>
         )}
         {!isLoggedIn && (
           <p className="mt-2 text-xs text-[var(--text-tertiary)]">
-            Login karo taaki review likh sako — reviews padhna sabke liye open hai.
+            Sign in to write a review — reading is open to everyone.
           </p>
         )}
       </div>

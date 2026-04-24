@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountryStore } from "@/stores/useCountryStore";
@@ -27,7 +27,16 @@ const isoToEmoji = (iso2?: string): string => {
 
 type SiteVariant = "wizard" | "quickgo" | "jyotish";
 
-function getSiteVariant(pathname: string): SiteVariant {
+function getSiteVariant(
+  pathname: string,
+  platformOverride?: string | null,
+): SiteVariant {
+  // Checkout lives under /(store) so the pathname alone can't say where the
+  // shopper came from — honour `?platform=quickgo` so the topbar tracks
+  // the cart the shopper is about to pay for.
+  if (platformOverride === "quickgo" || platformOverride === "hecate-quickgo") {
+    return "quickgo";
+  }
   if (pathname.startsWith("/hecate-quickgo")) return "quickgo";
   if (pathname.startsWith("/jyotish")) return "jyotish";
   return "wizard";
@@ -64,7 +73,11 @@ const SITE_CONFIG: Record<SiteVariant, { label: string; bg: string; text: string
 
 export function Topbar({ className }: { className?: string }) {
   const pathname = usePathname();
-  const variant = getSiteVariant(pathname);
+  const searchParams = useSearchParams();
+  const variant = getSiteVariant(
+    pathname,
+    searchParams?.get("platform")?.toLowerCase(),
+  );
   const config = SITE_CONFIG[variant];
 
   const { code, symbol, currency, setCountry } = useCountryStore();
@@ -172,14 +185,20 @@ export function Topbar({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative hidden md:grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-[var(--border-primary)] py-1.5 px-4 lg:px-8 text-xs",
+        // 3-col grid at every breakpoint so the centred site name is
+        // visible on mobile too (shopper sees "Hecate Wizard Mall" /
+        // "Hecate QuickGo" context even on a phone). Gaps shrink on
+        // mobile so all three clusters fit without the center wrapping.
+        "relative grid grid-cols-[auto_1fr_auto] md:grid-cols-[1fr_auto_1fr] items-center gap-1.5 md:gap-4 border-b border-[var(--border-primary)] py-1.5 px-3 md:px-4 lg:px-8 text-[11px] md:text-xs",
         config.bg,
         config.text,
         className,
       )}
     >
-      {/* Left: Country/State selector + cross-site logo */}
-      <div className="flex items-center gap-4 min-w-0">
+      {/* Left: Country/State selector + cross-site logo. On mobile the
+          gap shrinks so both the logo and the selector fit without
+          wrapping. */}
+      <div className="flex items-center gap-2 md:gap-4 min-w-0">
         {/* Show cross-site logo for quickgo and jyotish */}
         {config.logoSrc && (
           <Link href={config.logoHref} className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity">
@@ -201,7 +220,12 @@ export function Topbar({ className }: { className?: string }) {
             </button>
 
             {countryOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] py-1 shadow-[var(--shadow-lg)] animate-in fade-in slide-in-from-top-1 duration-150">
+              /* Panel styled with explicit dark colors so it reads
+                 correctly on BOTH the jyotish-dark topbar (where the
+                 `--bg-primary` / `--text-*` variables can resolve to
+                 values that don't contrast well) and the wizard
+                 light/dark themes. */
+              <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-white/10 bg-[#0f0a24] py-1 shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150">
                 {countries.map((country) => (
                   <button
                     key={country.code}
@@ -218,13 +242,16 @@ export function Topbar({ className }: { className?: string }) {
                       setCountryOpen(false);
                     }}
                     className={cn(
-                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-secondary)]",
-                      country.code === code && "bg-[var(--accent-primary-light)] text-[var(--accent-primary)] font-medium",
+                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-white/85 transition-colors duration-150 hover:bg-white/10",
+                      country.code === code &&
+                        "bg-[var(--jy-accent-gold)]/20 text-[var(--jy-accent-gold)] font-medium",
                     )}
                   >
                     <span>{country.emoji}</span>
                     <span>{country.country}</span>
-                    <span className="ml-auto text-[var(--text-muted)]">{country.symbol} {country.currency}</span>
+                    <span className="ml-auto text-white/50">
+                      {country.symbol} {country.currency}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -313,29 +340,33 @@ export function Topbar({ className }: { className?: string }) {
 
         {variant !== "quickgo" && (
           <>
-            <span className="text-[var(--text-muted)]">|</span>
-            <span>
+            <span className="hidden md:inline text-[var(--text-muted)]">|</span>
+            <span className="hidden md:inline">
               Currency: <span className="font-medium">{symbol} {currency}</span>
             </span>
           </>
         )}
       </div>
 
-      {/* Center: Site name (hidden on narrow screens so it never overlaps the
-          city dropdown which can grow long). */}
+      {/* Center: Site name. Shown at every breakpoint — on mobile it
+          shrinks to a tiny label so it fits between the selectors
+          without pushing them off-screen. Truncates as a safety net
+          if a future variant gets a longer label. */}
       <div
         className={cn(
-          "hidden whitespace-nowrap text-center font-semibold tracking-wide text-xs lg:block",
+          "min-w-0 truncate whitespace-nowrap text-center font-semibold tracking-wide text-[10px] md:text-xs",
           config.accent,
         )}
       >
         {config.label}
       </div>
 
-      {/* Right: Theme toggle */}
-      <div className="flex items-center justify-end gap-3">
-        {/* Cross-site quick link (none on quickgo) */}
-        {variant === "jyotish" && (
+      {/* Right: Theme toggle + optional cross-site link. Gap compresses
+          on mobile to keep this cluster tight against the edge. */}
+      <div className="flex items-center justify-end gap-2 md:gap-3 shrink-0">
+        {/* Cross-site quick link (only from jyotish, and only when the
+            shopper is on the India storefront — QuickGo is India-only). */}
+        {variant === "jyotish" && (code ?? "IND").toUpperCase() === "IND" && (
           <Link href={ROUTES.QUICKGO.HOME} className="text-xs font-medium opacity-70 hover:opacity-100 transition-opacity">
             QuickGo
           </Link>

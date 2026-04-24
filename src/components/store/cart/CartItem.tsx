@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import { useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
 import type { CartItem as CartItemType } from "@/types/cart";
 
@@ -42,7 +43,7 @@ export function CartItemCard({ item, className }: CartItemProps) {
       {/* Thumbnail */}
       <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl bg-[var(--bg-secondary)]">
         {item.image ? (
-          <Image src={item.image} alt={item.productName} fill sizes="72px" className="object-cover" />
+          <Image src={resolveAssetUrl(item.image)} alt={item.productName} fill sizes="72px" className="object-cover" unoptimized />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <ShoppingBag className="h-6 w-6 text-[var(--text-muted)]" />
@@ -74,9 +75,10 @@ export function CartItemCard({ item, className }: CartItemProps) {
           </div>
 
           {/* Offer badge */}
-          {item.productOfferApplied && item.productOfferDiscount && (
+          {item.offerApplied && item.savedAmount > 0 && (
             <span className="mt-1 inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">
-              Offer: -{item.currencySymbol}{item.productOfferDiscount}
+              {item.offerName ?? "Offer"}: -{item.currencySymbol}
+              {item.savedAmount.toLocaleString()}
             </span>
           )}
         </div>
@@ -111,7 +113,7 @@ export function CartItemCard({ item, className }: CartItemProps) {
           </div>
 
           <span className="text-sm font-bold text-[var(--text-primary)]">
-            {item.currencySymbol}{item.totalPrice.toLocaleString()}
+            {item.currencySymbol}{item.lineTotal.toLocaleString()}
           </span>
         </div>
       </div>

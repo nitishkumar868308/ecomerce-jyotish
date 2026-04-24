@@ -3,34 +3,98 @@
 import React, { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useProducts } from "@/services/products";
+import { useProducts, useProductsFast } from "@/services/products";
 import { filterByPlatform, type StorePlatform } from "@/lib/products";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { ProductCard } from "./ProductCard";
+import type { Product } from "@/types/product";
 
 interface RelatedProductsProps {
   categoryId?: number;
   currentProductId: string | number;
   className?: string;
   platform?: StorePlatform;
+  /** QuickGo only — shopper's picked fulfillment city. Forwarded to the
+   *  backend so the related row is narrowed to locally-stocked products. */
+  city?: string;
+  /** QuickGo only — shopper's pincode (pairs with `city`). */
+  pincode?: string;
 }
 
-export function RelatedProducts({
+/**
+ * Platform-aware dispatcher. Wizard and QuickGo want different list
+ * semantics — wizard pulls the full category across ALL products and
+ * filters client-side (consistent with how the wizard storefront has
+ * always behaved), while QuickGo must filter on the server by city +
+ * pincode so unstocked products never leak into the rail. Both are
+ * plugged into the same presentation component so the UI stays 1:1.
+ */
+export function RelatedProducts(props: RelatedProductsProps) {
+  if (props.platform === "quickgo") {
+    return <QuickGoRelatedFetcher {...props} />;
+  }
+  return <WizardRelatedFetcher {...props} />;
+}
+
+function WizardRelatedFetcher({
   categoryId,
   currentProductId,
   className,
-  platform = "wizard",
 }: RelatedProductsProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const { data, isLoading } = useProducts({
-    categoryId,
-    limit: 12,
-  });
-
-  const products = filterByPlatform(data?.data, platform).filter(
+  const { data, isLoading } = useProducts({ categoryId, limit: 12 });
+  const products = filterByPlatform(data?.data, "wizard").filter(
     (p) => p.id !== currentProductId,
   );
+  return (
+    <RelatedProductsView
+      products={products}
+      isLoading={isLoading}
+      className={className}
+    />
+  );
+}
+
+function QuickGoRelatedFetcher({
+  categoryId,
+  currentProductId,
+  className,
+  city,
+  pincode,
+}: RelatedProductsProps) {
+  // `enabled` is implicit — if city/pincode aren't ready yet react-query
+  // will still issue the request, but the backend short-circuits to an
+  // empty result when the location filter doesn't match anything, so
+  // the rail stays empty instead of leaking non-QuickGo stock.
+  const { data, isLoading } = useProductsFast({
+    categoryId,
+    page: 1,
+    limit: 12,
+    platform: "quickgo",
+    city: city || undefined,
+    pincode: pincode || undefined,
+  });
+  const products = ((data?.data?.products ?? []) as Product[]).filter(
+    (p) => p.id !== currentProductId,
+  );
+  return (
+    <RelatedProductsView
+      products={products}
+      isLoading={isLoading}
+      className={className}
+    />
+  );
+}
+
+function RelatedProductsView({
+  products,
+  isLoading,
+  className,
+}: {
+  products: Product[];
+  isLoading: boolean;
+  className?: string;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -41,6 +105,9 @@ export function RelatedProducts({
     });
   };
 
+  // No empty-state placeholder — when the locally-stocked list has only
+  // the current product (or nothing related), the whole section just
+  // disappears so the PDP doesn't show a lonely "Related" header.
   if (!isLoading && products.length === 0) return null;
 
   return (

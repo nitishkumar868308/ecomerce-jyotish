@@ -1,10 +1,12 @@
 export interface ConsultantService {
   id: number;
-  name: string;
-  description?: string;
+  title: string;
+  shortDesc?: string;
+  longDesc?: string;
   image?: string;
-  price: number;
-  isActive: boolean;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ConsultantSlot {

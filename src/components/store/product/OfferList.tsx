@@ -40,11 +40,36 @@ export function OfferList({
   const hasBulk = !!(bulkPrice && minQuantity && Number(bulkPrice) > 0);
   if (activeOffers.length === 0 && !hasBulk) return null;
 
+  // Figure out each offer's tier state relative to the current qty so we
+  // can pick the right copy ("Applied" vs "Add N more" vs nothing when the
+  // shopper has already moved past the tier window).
   const rows = activeOffers
     .map((offer) => {
       const result = calculateOffer(0, offer, activeQuantity);
       const unlocked = result.hasOffer;
-      return { offer, result, unlocked };
+      const bag =
+        typeof offer.discountValue === "object" && offer.discountValue
+          ? (offer.discountValue as Record<string, unknown>)
+          : {};
+      const pick = (...keys: string[]) => {
+        for (const k of keys) {
+          const v = bag[k];
+          const n =
+            typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
+          if (Number.isFinite(n)) return n;
+        }
+        return 0;
+      };
+      const type = offer.discountType?.toUpperCase() ?? "";
+      const from =
+        type === "RANGE_FREE"
+          ? pick("from", "minQty", "start")
+          : pick("minQty", "minQuantity", "qty");
+      const to = type === "RANGE_FREE" ? pick("to", "maxQty", "end") : 0;
+      const below = from > 0 && activeQuantity < from;
+      const above = to > 0 && activeQuantity > to;
+      const needed = below ? from - activeQuantity : 0;
+      return { offer, result, unlocked, below, above, needed };
     })
     .sort((a, b) => Number(b.unlocked) - Number(a.unlocked));
 
@@ -64,8 +89,17 @@ export function OfferList({
       </header>
 
       <ul className="divide-y divide-[var(--border-primary)]">
-        {rows.map(({ offer, result, unlocked }) => {
+        {rows.map(({ offer, result, unlocked, below, above, needed }) => {
           const claimed = claimedOfferIds.includes(offer.id);
+          // Only show the "Add more" hint when the shopper is genuinely
+          // below the tier. Once they're inside or past the window, that
+          // copy becomes misleading (they've either got the offer, or
+          // bumped past its upper bound).
+          const hintCopy = below && needed > 0
+            ? `Add ${needed} more to unlock`
+            : above
+              ? "You've moved past this tier"
+              : "";
           return (
             <li
               key={offer.id}
@@ -105,23 +139,28 @@ export function OfferList({
                 <p className="text-xs text-[var(--text-secondary)]">
                   {result.offerHeadline || offer.description || "Limited time"}
                 </p>
-                {!unlocked && result.offerHeadline && (
+                {!unlocked && hintCopy && (
                   <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
-                    Add more to unlock
+                    {hintCopy}
                   </p>
                 )}
               </div>
 
-              {claimed && (
+              {unlocked ? (
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-green-200 px-2 py-0.5 text-[10px] font-semibold text-green-800 dark:bg-green-800 dark:text-green-300">
+                  <Check className="h-3 w-3" /> Applied
+                </span>
+              ) : claimed && !above ? (
+                // Only show "Claimed" when the shopper hasn't blown past
+                // the tier window. Above the upper bound the offer is no
+                // longer the best deal (bulk has probably taken over) —
+                // leaving a green tick on the offer would contradict
+                // the "you've moved past this tier" hint right next to
+                // it.
                 <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-green-200 px-2 py-0.5 text-[10px] font-semibold text-green-800 dark:bg-green-800 dark:text-green-300">
                   <Check className="h-3 w-3" /> Claimed
                 </span>
-              )}
-              {!claimed && unlocked && (
-                <span className="shrink-0 rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700 dark:text-green-400">
-                  Live
-                </span>
-              )}
+              ) : null}
             </li>
           );
         })}

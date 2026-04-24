@@ -4,11 +4,22 @@ import type { Category, Subcategory } from "@/types/category";
 import type { ApiResponse } from "@/types/api";
 import toast from "react-hot-toast";
 
-export function useCategories() {
+export function useCategories(opts?: {
+  platform?: "quickgo" | "wizard" | string;
+  city?: string;
+}) {
+  const platform = opts?.platform;
+  const city = opts?.city;
   return useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories", platform ?? null, city ?? null],
     queryFn: async () => {
-      const { data } = await api.get<ApiResponse<Category[]>>(ENDPOINTS.CATEGORIES.LIST);
+      const params: Record<string, string> = {};
+      if (platform) params.platform = platform;
+      if (city) params.city = city;
+      const { data } = await api.get<ApiResponse<Category[]>>(
+        ENDPOINTS.CATEGORIES.LIST,
+        Object.keys(params).length ? { params } : undefined,
+      );
       return data.data;
     },
     staleTime: 5 * 60 * 1000,
@@ -81,14 +92,30 @@ export function useDeleteCategory() {
   });
 }
 
-export function useSubcategories(categoryId?: number) {
+export function useSubcategories(
+  categoryId?: number,
+  opts?: { platform?: "quickgo" | "wizard" | string; city?: string },
+) {
+  const platform = opts?.platform;
+  const city = opts?.city;
   return useQuery({
-    queryKey: ["subcategories", categoryId],
+    queryKey: [
+      "subcategories",
+      categoryId ?? null,
+      platform ?? null,
+      city ?? null,
+    ],
     queryFn: async () => {
       const url = categoryId
         ? ENDPOINTS.SUBCATEGORIES.BY_CATEGORY(categoryId)
         : ENDPOINTS.SUBCATEGORIES.LIST;
-      const { data } = await api.get<ApiResponse<Subcategory[]>>(url);
+      const params: Record<string, string> = {};
+      if (platform) params.platform = platform;
+      if (city) params.city = city;
+      const { data } = await api.get<ApiResponse<Subcategory[]>>(
+        url,
+        Object.keys(params).length ? { params } : undefined,
+      );
       return data.data;
     },
     staleTime: 5 * 60 * 1000,

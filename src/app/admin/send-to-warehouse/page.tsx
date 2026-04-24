@@ -56,7 +56,27 @@ export default function SendToWarehousePage() {
   const [search, setSearch] = useState("");
   const [queue, setQueue] = useState<QueuedItem[]>([]);
 
-  const { data: warehouses } = useWarehouseLocations();
+  const { data: allWarehouses } = useWarehouseLocations();
+  // Only Delhi warehouses are surfaced here — this console is the Delhi
+  // replenishment flow. Match by `city` (the admin stores free-text city
+  // names) or by `fulfillmentWarehouseId` pointing at a Delhi warehouse
+  // so the "fulfillment by Delhi" warehouses still qualify.
+  const warehouses = useMemo(() => {
+    const list = allWarehouses ?? [];
+    if (list.length === 0) return list;
+    const delhiIds = new Set(
+      list
+        .filter((w) => String(w.city ?? "").toLowerCase().trim() === "delhi")
+        .map((w) => w.id),
+    );
+    return list.filter((w) => {
+      const ownCity = String(w.city ?? "").toLowerCase().trim();
+      if (ownCity === "delhi") return true;
+      const ff = (w as { fulfillmentWarehouseId?: number | null })
+        .fulfillmentWarehouseId;
+      return ff != null && delhiIds.has(ff);
+    });
+  }, [allWarehouses]);
   const { data: productsResp } = useProducts(search ? { search } : undefined);
   const { data: dispatched } = useSendToWarehouse();
   const createTransfer = useCreateSendToWarehouse();
@@ -139,8 +159,32 @@ export default function SendToWarehousePage() {
     }
   };
 
+  // Per-label print selection. We keep a set of row `key`s that the admin
+  // has ticked. The Labels tab prints only selected rows — or, if the
+  // admin hasn't ticked any, falls back to printing everything in the
+  // active list so "Print all" still works.
+  const [selectedLabelKeys, setSelectedLabelKeys] = useState<Set<string>>(
+    new Set(),
+  );
+  const toggleLabelKey = (key: string) => {
+    setSelectedLabelKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const handlePrintLabels = () => {
-    const html = buildLabelHtml(queue.length > 0 ? queue : dispatchedAsLabels);
+    const source = queue.length > 0 ? queue : dispatchedAsLabels;
+    const chosen = selectedLabelKeys.size
+      ? source.filter((it) => selectedLabelKeys.has(it.key))
+      : source;
+    if (chosen.length === 0) {
+      toast.error("Nothing to print \u2014 tick the labels you want.");
+      return;
+    }
+    const html = buildLabelHtml(chosen);
     const win = window.open("", "_blank", "width=600,height=800");
     if (!win) return;
     win.document.write(html);
@@ -356,33 +400,97 @@ export default function SendToWarehousePage() {
             </p>
           ) : (
             <div className="divide-y divide-[var(--border-primary)] rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)]">
-              {(dispatched as any[]).map((row) => (
-                <div
-                  key={row.id}
-                  className="flex items-center justify-between gap-3 p-4"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                      {row.product?.name ?? row.productName ?? "(product)"}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Qty {row.quantity} · {row.warehouse?.name || "—"} ·{" "}
-                      {new Date(row.createdAt).toLocaleDateString()}
-                    </p>
+              {(dispatched as any[]).map((row) => {
+                const whName =
+                  row.warehouse?.name ||
+                  (allWarehouses ?? []).find((w) => w.id === row.warehouseId)
+                    ?.name ||
+                  "\u2014";
+                const whCity =
+                  row.warehouse?.city ||
+                  (allWarehouses ?? []).find((w) => w.id === row.warehouseId)
+                    ?.city ||
+                  "";
+                return (
+                  <div key={row.id} className="space-y-2 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                          {row.product?.name ?? row.productName ?? "(product)"}
+                        </p>
+                        {(row.variation?.variationName ||
+                          row.variationName) && (
+                          <p className="truncate text-xs text-[var(--text-muted)]">
+                            {row.variation?.variationName ?? row.variationName}
+                          </p>
+                        )}
+                      </div>
+                      <Badge
+                        variant={
+                          row.status === "DELIVERED"
+                            ? "success"
+                            : row.status === "IN_TRANSIT"
+                              ? "info"
+                              : "warning"
+                        }
+                      >
+                        {row.status || "QUEUED"}
+                      </Badge>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs sm:grid-cols-4">
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                          Quantity
+                        </dt>
+                        <dd className="font-semibold tabular-nums text-[var(--text-primary)]">
+                          {row.quantity ?? 0}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                          Warehouse
+                        </dt>
+                        <dd className="text-[var(--text-primary)]">
+                          {whName}
+                          {whCity ? (
+                            <span className="ml-1 text-[10px] text-[var(--text-muted)]">
+                              ({whCity})
+                            </span>
+                          ) : null}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                          Bucket
+                        </dt>
+                        <dd className="font-mono text-[var(--text-primary)]">
+                          {row.fulfilmentBucket ?? "\u2014"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                          FNSKU / SKU
+                        </dt>
+                        <dd className="font-mono text-[var(--text-primary)]">
+                          {row.fnsku ||
+                            row.FNSKU ||
+                            row.sku ||
+                            row.product?.sku ||
+                            "\u2014"}
+                        </dd>
+                      </div>
+                      <div className="col-span-2 sm:col-span-4">
+                        <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                          Dispatched
+                        </dt>
+                        <dd className="text-[var(--text-secondary)]">
+                          {new Date(row.createdAt).toLocaleString()}
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
-                  <Badge
-                    variant={
-                      row.status === "DELIVERED"
-                        ? "success"
-                        : row.status === "IN_TRANSIT"
-                          ? "info"
-                          : "warning"
-                    }
-                  >
-                    {row.status || "QUEUED"}
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <div className="flex justify-end">
@@ -397,28 +505,85 @@ export default function SendToWarehousePage() {
         </section>
       )}
 
-      {tab === "labels" && (
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-[var(--text-secondary)]">
-              {queue.length > 0
-                ? `Previewing labels for the ${queue.length} queued item(s). Dispatch first to persist them.`
-                : "Previewing labels for your recent dispatched transfers."}
-            </p>
-            <Button
-              onClick={handlePrintLabels}
-              leftIcon={<Printer className="h-4 w-4" />}
-            >
-              Print all labels
-            </Button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(queue.length > 0 ? queue : dispatchedAsLabels).map((item) => (
-              <LabelPreview key={item.key} item={item} />
-            ))}
-          </div>
-        </section>
-      )}
+      {tab === "labels" && (() => {
+        const source = queue.length > 0 ? queue : dispatchedAsLabels;
+        const allKeys = source.map((it) => it.key);
+        const allSelected =
+          allKeys.length > 0 && allKeys.every((k) => selectedLabelKeys.has(k));
+        const someSelected = selectedLabelKeys.size > 0 && !allSelected;
+        return (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-[var(--text-secondary)]">
+                {queue.length > 0
+                  ? `Previewing labels for the ${queue.length} queued item(s). Dispatch first to persist them.`
+                  : "Previewing labels for your recent dispatched transfers."}
+              </p>
+              <div className="flex items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-card)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someSelected;
+                    }}
+                    onChange={() => {
+                      setSelectedLabelKeys(
+                        allSelected ? new Set() : new Set(allKeys),
+                      );
+                    }}
+                    className="h-4 w-4 rounded accent-[var(--accent-primary)]"
+                  />
+                  {allSelected ? "Deselect all" : "Select all"}
+                </label>
+                <Button
+                  onClick={handlePrintLabels}
+                  leftIcon={<Printer className="h-4 w-4" />}
+                >
+                  {selectedLabelKeys.size > 0
+                    ? `Print ${selectedLabelKeys.size} label${selectedLabelKeys.size === 1 ? "" : "s"}`
+                    : "Print all labels"}
+                </Button>
+              </div>
+            </div>
+
+            {source.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">
+                Nothing to label yet. Queue items in tab 2 or dispatch a
+                batch in tab 3.
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {source.map((item) => {
+                  const picked = selectedLabelKeys.has(item.key);
+                  return (
+                    <label
+                      key={item.key}
+                      className={cn(
+                        "block cursor-pointer rounded-xl p-1 transition-colors",
+                        picked
+                          ? "ring-2 ring-[var(--accent-primary)]"
+                          : "ring-1 ring-transparent hover:ring-[var(--border-primary)]",
+                      )}
+                    >
+                      <div className="mb-1.5 flex items-center gap-2 px-2 text-xs font-medium text-[var(--text-secondary)]">
+                        <input
+                          type="checkbox"
+                          checked={picked}
+                          onChange={() => toggleLabelKey(item.key)}
+                          className="h-4 w-4 rounded accent-[var(--accent-primary)]"
+                        />
+                        Include this label
+                      </div>
+                      <LabelPreview item={item} />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       <div className="mt-8 text-xs text-[var(--text-muted)]">
         Need new warehouses? See{" "}
@@ -463,31 +628,27 @@ function TabButton({
 }
 
 function LabelPreview({ item }: { item: QueuedItem }) {
+  const barcodeValue = item.fnsku || item.sku || "";
   return (
-    <div className="rounded-xl border-2 border-dashed border-[var(--border-primary)] bg-white p-4 text-black">
-      <p className="text-[10px] uppercase tracking-wide text-gray-500">
+    <div
+      className="rounded-lg border-2 border-dashed border-[var(--border-primary)] bg-white p-2.5 text-black"
+      style={{ maxWidth: "18rem" }}
+    >
+      <p className="text-[8px] uppercase tracking-wide text-gray-500">
         HECATE WIZARD MALL
       </p>
-      <p className="mt-1 text-sm font-bold leading-tight">
+      <p className="mt-0.5 text-xs font-bold leading-tight line-clamp-2">
         {item.productName}
       </p>
       {item.variationLabel && (
-        <p className="text-xs text-gray-700">{item.variationLabel}</p>
+        <p className="text-[10px] text-gray-700">{item.variationLabel}</p>
       )}
-      <div className="mt-2 flex items-end justify-between">
-        <div>
-          <p className="text-[10px] text-gray-500">MRP</p>
-          <p className="text-base font-bold">₹{item.mrp ?? "—"}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] text-gray-500">FNSKU</p>
-          <p className="font-mono text-sm font-semibold">
-            {item.fnsku || item.sku || "—"}
-          </p>
-        </div>
+      <div className="mt-1.5">
+        <p className="text-[8px] text-gray-500">MRP</p>
+        <p className="text-sm font-bold leading-tight">₹{item.mrp ?? "—"}</p>
       </div>
-      <div className="mt-3 font-mono text-[10px] tracking-[0.25em] text-gray-800">
-        {(item.fnsku || item.sku || "")
+      <div className="mt-2 font-mono text-[8px] tracking-[0.22em] text-gray-800 text-center">
+        {(barcodeValue || "")
           .padEnd(12, "0")
           .slice(0, 12)
           .split("")
@@ -495,43 +656,74 @@ function LabelPreview({ item }: { item: QueuedItem }) {
             <span key={i}>{c}</span>
           ))}
       </div>
+      <p className="mt-0.5 text-center font-mono text-[10px] font-semibold text-gray-900">
+        {barcodeValue || "—"}
+      </p>
     </div>
   );
 }
 
 function buildLabelHtml(items: QueuedItem[]): string {
+  // Compact thermal-label layout (50 x 30 mm). The FNSKU key is dropped —
+  // its value sits directly below the barcode so scanners + humans can read
+  // the same string in the same place.
+  // One physical label per unit shipped: a row with quantity=20 prints
+  // 20 labels. Matches the print-labels console so dispatch + shelf
+  // stickering stay consistent.
   const labels = items
-    .map(
-      (item) => `
+    .flatMap((item) => {
+      const code = item.fnsku || item.sku || "000000";
+      const copies = Math.max(
+        1,
+        Math.min(500, Number(item.quantity) || 1),
+      );
+      const tpl = `
     <div class="label">
       <div class="brand">HECATE WIZARD MALL</div>
       <div class="name">${escapeHtml(item.productName)}</div>
       ${item.variationLabel ? `<div class="variation">${escapeHtml(item.variationLabel)}</div>` : ""}
-      <div class="row">
-        <div><small>MRP</small><strong>₹${item.mrp ?? "—"}</strong></div>
-        <div class="right"><small>FNSKU</small><strong>${escapeHtml(item.fnsku || item.sku || "—")}</strong></div>
+      <div class="mrp">
+        <small>MRP</small><strong>₹${item.mrp ?? "—"}</strong>
       </div>
-      <div class="barcode">*${escapeHtml(item.fnsku || item.sku || "000000")}*</div>
-    </div>`,
-    )
+      <div class="barcode">*${escapeHtml(code)}*</div>
+      <div class="code">${escapeHtml(code)}</div>
+    </div>`;
+      return Array.from({ length: copies }, () => tpl);
+    })
     .join("");
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Labels</title>
-<style>
-  body { font-family: Arial, sans-serif; margin: 0; padding: 8mm; color: #000; }
-  .label { box-sizing: border-box; width: 100mm; height: 50mm; border: 2px dashed #333; padding: 4mm 6mm; page-break-inside: avoid; margin-bottom: 4mm; }
-  .brand { font-size: 9px; letter-spacing: 1px; color: #666; }
-  .name { font-size: 13px; font-weight: 700; line-height: 1.1; margin-top: 2px; }
-  .variation { font-size: 10px; color: #444; }
-  .row { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; }
-  .row small { display:block; font-size: 8px; color: #888; text-transform: uppercase; }
-  .row strong { font-size: 13px; }
-  .right { text-align: right; }
-  .barcode { margin-top: 6px; font-family: 'Libre Barcode 39', 'Courier New', monospace; font-size: 34px; letter-spacing: 2px; text-align: center; }
-  @media print { .label { border-style: solid; } }
-</style>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet" />
-</head><body>${labels}</body></html>`;
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 6mm; color: #000; background: #fff; }
+  .sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+  .label {
+    box-sizing: border-box;
+    border: 1px dashed #333;
+    padding: 3mm;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    min-height: 32mm;
+    overflow: hidden;
+  }
+  .brand { font-size: 7px; letter-spacing: 0.6px; color: #666; }
+  .name { font-size: 10px; font-weight: 700; line-height: 1.15; margin-top: 1px;
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .variation { font-size: 8px; color: #444; margin-top: 1px; }
+  .mrp { display: flex; align-items: baseline; gap: 3px; margin-top: 2px; font-size: 9px; }
+  .mrp small { font-size: 6px; color: #888; text-transform: uppercase; }
+  .mrp strong { font-size: 10px; }
+  .barcode { margin-top: 2px; font-family: 'Libre Barcode 39', 'Courier New', monospace;
+             font-size: 28px; letter-spacing: 1px; text-align: center; line-height: 1; }
+  .code { font-family: 'Courier New', monospace; font-size: 9px; font-weight: 700;
+          text-align: center; letter-spacing: 1px; margin-top: 1px; }
+  @media print {
+    body { padding: 0; }
+    .label { border-style: solid; border-color: #666; }
+    @page { margin: 6mm; }
+  }
+</style>
+</head><body><div class="sheet">${labels}</div></body></html>`;
 }
 
 function escapeHtml(v: string | number | undefined): string {

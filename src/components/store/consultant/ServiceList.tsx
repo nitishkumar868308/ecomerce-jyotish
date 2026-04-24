@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useConsultantServices } from "@/services/consultant";
-import { usePrice } from "@/hooks/usePrice";
 import { Sparkles } from "lucide-react";
 import type { ConsultantService } from "@/types/consultant";
 
@@ -35,8 +34,6 @@ function ServiceCard({
   service: ConsultantService;
   onSelect?: (service: ConsultantService) => void;
 }) {
-  const { format } = usePrice();
-
   return (
     <button
       type="button"
@@ -48,7 +45,7 @@ function ServiceCard({
         {service.image ? (
           <Image
             src={service.image}
-            alt={service.name}
+            alt={service.title}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -63,16 +60,13 @@ function ServiceCard({
       {/* Content */}
       <div className="p-4">
         <h3 className="text-base font-bold text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent-primary)]">
-          {service.name}
+          {service.title}
         </h3>
-        {service.description && (
+        {service.shortDesc && (
           <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-            {service.description}
+            {service.shortDesc}
           </p>
         )}
-        <p className="mt-3 text-base font-bold text-[var(--accent-primary)]">
-          {format(service.price)}
-        </p>
       </div>
     </button>
   );
@@ -97,7 +91,7 @@ export function ServiceList({ onSelect, className }: ServiceListProps) {
   }
 
   const activeServices = (services as ConsultantService[] | undefined)?.filter(
-    (s) => s.isActive
+    (s) => s.active
   ) ?? [];
 
   if (activeServices.length === 0) {

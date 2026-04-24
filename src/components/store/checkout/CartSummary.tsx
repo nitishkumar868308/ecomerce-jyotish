@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/loader/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useCart, useUpdateCartItem, useRemoveCartItem } from "@/services/cart";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 import { ROUTES } from "@/config/routes";
 import type { CartItem } from "@/types/cart";
 
@@ -24,7 +25,7 @@ function CartItemRow({ item }: { item: CartItem }) {
     <div className={cn("flex gap-3 border-b border-[var(--border-primary)] py-4 last:border-b-0 sm:gap-4", isPending && "opacity-50 pointer-events-none")}>
       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--bg-secondary)] sm:h-24 sm:w-24">
         {item.image ? (
-          <Image src={item.image} alt={item.productName} fill sizes="96px" className="object-cover" />
+          <Image src={resolveAssetUrl(item.image)} alt={item.productName} fill sizes="96px" className="object-cover" unoptimized />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <ShoppingBag className="h-6 w-6 text-[var(--text-muted)]" />
@@ -40,9 +41,10 @@ function CartItemRow({ item }: { item: CartItem }) {
               {Object.entries(item.attributes).map(([k, v]) => `${k}: ${v}`).join(", ")}
             </p>
           )}
-          {item.productOfferApplied && item.productOfferDiscount && (
+          {item.offerApplied && item.savedAmount > 0 && (
             <span className="mt-1 inline-flex text-[10px] font-medium text-green-600">
-              Offer: -{item.currencySymbol}{item.productOfferDiscount}
+              {item.offerName ?? "Offer"}: -{item.currencySymbol}
+              {item.savedAmount.toLocaleString()}
             </span>
           )}
         </div>
@@ -65,7 +67,7 @@ function CartItemRow({ item }: { item: CartItem }) {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm font-bold text-[var(--text-primary)]">
-              {item.currencySymbol}{item.totalPrice.toLocaleString()}
+              {item.currencySymbol}{item.lineTotal.toLocaleString()}
             </span>
             <button
               onClick={() => removeItem.mutate(item.id)}
@@ -81,7 +83,8 @@ function CartItemRow({ item }: { item: CartItem }) {
 }
 
 export function CartSummary({ className }: CartSummaryProps) {
-  const { data: items, isLoading } = useCart();
+  const { data: cart, isLoading } = useCart();
+  const items = cart?.items ?? [];
 
   if (isLoading) {
     return (
@@ -98,7 +101,7 @@ export function CartSummary({ className }: CartSummaryProps) {
     );
   }
 
-  if (!items || items.length === 0) {
+  if (items.length === 0) {
     return (
       <div className={cn("rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5", className)}>
         <EmptyState icon={ShoppingBag} title="Your cart is empty" description="Add some products to get started."
@@ -107,8 +110,8 @@ export function CartSummary({ className }: CartSummaryProps) {
     );
   }
 
-  const currSymbol = items[0]?.currencySymbol || "₹";
-  const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
+  const currSymbol = cart?.summary.currencySymbol || items[0]?.currencySymbol || "₹";
+  const subtotal = cart?.summary.total ?? items.reduce((sum, item) => sum + item.lineTotal, 0);
 
   return (
     <div className={cn("rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5", className)}>

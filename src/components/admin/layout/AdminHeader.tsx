@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Bell, LogOut, ChevronDown } from "lucide-react";
+import { Menu, LogOut, ChevronDown } from "lucide-react";
+import { AdminNotificationBell } from "./AdminNotificationBell";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/useUIStore";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -168,16 +169,9 @@ export default function AdminHeader() {
       <div className="ml-auto flex items-center gap-1 md:gap-2">
         <ThemeToggle />
 
-        {/* Notification bell */}
-        <button
-          type="button"
-          className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-          {/* Unread dot */}
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--accent-danger)]" />
-        </button>
+        {/* Notification bell — wired to the Jyotish notification feed.
+            Replaces the earlier static red-dot placeholder. */}
+        <AdminNotificationBell />
 
         {/* Separator */}
         <div className="mx-1 hidden h-6 w-px bg-[var(--border-primary)] md:block" />

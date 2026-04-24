@@ -43,8 +43,8 @@ export function BookingForm({ astrologerId, className }: BookingFormProps) {
     : allSlots;
 
   const serviceOptions = services
-    .filter((s) => s.isActive)
-    .map((s) => ({ value: String(s.id), label: s.name }));
+    .filter((s) => s.active)
+    .map((s) => ({ value: String(s.id), label: s.title }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
